@@ -19,9 +19,6 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  pages: {
-    signIn: '/auth/signin',
-  },
 };
 
 export function isAdmin(email?: string | null): boolean {
