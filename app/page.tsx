@@ -110,6 +110,8 @@ export default function HomePage() {
     }
   }
 
+  const isAdmin = session?.user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+
   const daysUntilStart = Math.max(
     0,
     Math.ceil((new Date(TOURNAMENT.startDate).getTime() - Date.now()) / 86400000)
@@ -215,13 +217,15 @@ export default function HomePage() {
                 >
                   Join League
                 </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => { setError(''); setCreateOpen(true); }}
-                >
-                  New League
-                </Button>
+                {isAdmin && (
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => { setError(''); setCreateOpen(true); }}
+                  >
+                    New League
+                  </Button>
+                )}
               </Box>
             </Box>
 
@@ -242,9 +246,11 @@ export default function HomePage() {
                   <Button variant="outlined" onClick={() => { setError(''); setJoinOpen(true); }}>
                     Join with code
                   </Button>
-                  <Button variant="contained" onClick={() => { setError(''); setCreateOpen(true); }}>
-                    Create a league
-                  </Button>
+                  {isAdmin && (
+                    <Button variant="contained" onClick={() => { setError(''); setCreateOpen(true); }}>
+                      Create a league
+                    </Button>
+                  )}
                 </Box>
               </Card>
             ) : (
@@ -288,8 +294,8 @@ export default function HomePage() {
         )}
       </Container>
 
-      {/* Create league dialog */}
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
+      {/* Create league dialog — admin only */}
+      <Dialog open={isAdmin && createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Create a League</DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
           <TextField

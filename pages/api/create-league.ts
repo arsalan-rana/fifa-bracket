@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../lib/auth';
+import { authOptions, isAdmin } from '../../lib/auth';
 import { db } from '../../lib/db';
 
 function slugify(name: string): string {
@@ -16,6 +16,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.email) return res.status(401).json({ error: 'Unauthorized' });
+
+  if (!isAdmin(session.user.email)) {
+    return res.status(403).json({ error: 'Only the admin can create leagues' });
+  }
 
   const { name, description } = req.body as { name: string; description?: string };
   if (!name?.trim()) return res.status(400).json({ error: 'League name required' });

@@ -26,7 +26,8 @@ interface LeagueDashboardProps {
     slug: string;
     description?: string | null;
     inviteCode: string;
-    members: { user: { name: string | null; email: string; image: string | null } }[];
+    ownerId: string;
+    members: { userId: string; user: { name: string | null; email: string; image: string | null } }[];
     leaderboard: {
       rank: number;
       totalPoints: number;
@@ -42,13 +43,16 @@ interface LeagueDashboardProps {
   };
   currentUserEmail: string;
   isAdmin: boolean;
+  currentUserId: string;
 }
 
-export default function LeagueDashboard({ league, currentUserEmail, isAdmin }: LeagueDashboardProps) {
+export default function LeagueDashboard({ league, currentUserEmail, isAdmin, currentUserId }: LeagueDashboardProps) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState('');
+  const [kicking, setKicking] = useState<string | null>(null);
 
   const currentPhase = getCurrentPhase();
   const phaseConfig = PHASES.find((p) => p.id === currentPhase);
@@ -59,6 +63,13 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin }: L
     navigator.clipboard.writeText(league.inviteCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function copyJoinUrl() {
+    const url = `${window.location.origin}/join/${league.inviteCode}`;
+    navigator.clipboard.writeText(url);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
   }
 
   async function refreshLeaderboard() {
@@ -82,6 +93,26 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin }: L
     }
   }
 
+  async function handleKick(targetUserId: string, targetName: string) {
+    if (!window.confirm(`Remove ${targetName} from this league?`)) return;
+    setKicking(targetUserId);
+    try {
+      const res = await fetch('/api/kick-member', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId: league.id, targetUserId }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to kick member');
+      }
+    } finally {
+      setKicking(null);
+    }
+  }
+
   function parseActivity(log: { eventType: string; details: string }) {
     try {
       const d = JSON.parse(log.details);
@@ -90,6 +121,7 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin }: L
         case 'member_joined': return `${d.userName} joined the league`;
         case 'league_created': return `League "${d.leagueName}" was created`;
         case 'leaderboard_refreshed': return `Leaderboard updated (${d.count} players)`;
+        case 'member_kicked': return `A member was removed from the league`;
         default: return log.eventType;
       }
     } catch {
@@ -110,7 +142,7 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin }: L
           )}
 
           {/* Invite code */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1 }}>
             <Typography variant="body2" color="text.secondary">Invite code:</Typography>
             <Chip
               label={league.inviteCode.slice(0, 12)}
@@ -126,6 +158,27 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin }: L
               sx={{ borderRadius: 2 }}
             >
               {copied ? 'Copied!' : 'Copy'}
+            </Button>
+          </Box>
+
+          {/* Shareable join URL */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Typography variant="body2" color="text.secondary">Join link:</Typography>
+            <Typography
+              variant="body2"
+              sx={{ fontFamily: 'monospace', color: '#C9A73A', wordBreak: 'break-all' }}
+            >
+              {typeof window !== 'undefined' ? `${window.location.origin}/join/${league.inviteCode}` : `/join/${league.inviteCode}`}
+            </Typography>
+            <Button
+              size="small"
+              startIcon={<ContentCopyIcon fontSize="small" />}
+              onClick={copyJoinUrl}
+              variant={copiedUrl ? 'contained' : 'outlined'}
+              color="secondary"
+              sx={{ borderRadius: 2 }}
+            >
+              {copiedUrl ? 'Copied!' : 'Copy URL'}
             </Button>
           </Box>
         </Box>
@@ -278,15 +331,34 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin }: L
                 <Typography variant="h6" sx={{ fontWeight: 700 }} gutterBottom>
                   Members ({league.members.length})
                 </Typography>
-                {league.members.map((m) => (
-                  <Box key={m.user.email} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75 }}>
-                    <Avatar src={m.user.image ?? undefined} sx={{ width: 28, height: 28 }} />
-                    <Typography variant="body2" sx={{ fontWeight: m.user.email === currentUserEmail ? 700 : 400 }}>
-                      {m.user.name ?? m.user.email}
-                      {m.user.email === currentUserEmail && ' (you)'}
-                    </Typography>
-                  </Box>
-                ))}
+                {league.members.map((m) => {
+                  const canKick =
+                    (currentUserId === league.ownerId || isAdmin) &&
+                    m.userId !== currentUserId &&
+                    m.userId !== league.ownerId;
+                  return (
+                    <Box key={m.user.email} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75 }}>
+                      <Avatar src={m.user.image ?? undefined} sx={{ width: 28, height: 28 }} />
+                      <Typography variant="body2" sx={{ fontWeight: m.user.email === currentUserEmail ? 700 : 400, flexGrow: 1 }}>
+                        {m.user.name ?? m.user.email}
+                        {m.user.email === currentUserEmail && ' (you)'}
+                      </Typography>
+                      {canKick && (
+                        <Button
+                          size="small"
+                          color="error"
+                          variant="text"
+                          disabled={kicking === m.userId}
+                          onClick={() => handleKick(m.userId, m.user.name ?? m.user.email)}
+                          sx={{ minWidth: 0, px: 0.5, py: 0.25, fontSize: '1rem', lineHeight: 1 }}
+                          title={`Remove ${m.user.name ?? m.user.email}`}
+                        >
+                          {kicking === m.userId ? '...' : '×'}
+                        </Button>
+                      )}
+                    </Box>
+                  );
+                })}
               </CardContent>
             </Card>
 

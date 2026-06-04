@@ -32,11 +32,16 @@ export default async function LeaguePage({ params }: Props) {
 
   const adminMode = isAdmin(session?.user?.email);
 
+  // Find the current user's DB id from the members list (they may not be a member)
+  const currentMember = league.members.find((m) => m.user.email === session?.user?.email);
+  const currentUserId = currentMember?.userId ?? session?.user?.id ?? '';
+
   return (
     <LeagueDashboard
       league={JSON.parse(JSON.stringify(league))}
       currentUserEmail={session?.user?.email ?? ''}
       isAdmin={adminMode}
+      currentUserId={currentUserId}
     />
   );
 }
