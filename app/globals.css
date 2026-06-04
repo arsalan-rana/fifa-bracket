@@ -1,26 +1,55 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --fifa-blue: #003DA5;
+  --wc-gold: #C9A73A;
+  --usa-red: #BF0A30;
+  --mex-green: #006847;
+  --can-red: #FF0000;
+  --bg-dark: #0A0F1E;
+  --surface: #111827;
+  --surface-elevated: #1F2937;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg-dark);
+  color: #F9FAFB;
+  font-family: 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+  min-height: 100vh;
+}
+
+.wc-gradient {
+  background: linear-gradient(135deg, #003DA5 0%, #001F6B 50%, #0A0F1E 100%);
+}
+
+.gold-gradient {
+  background: linear-gradient(135deg, #C9A73A 0%, #F0D060 50%, #C9A73A 100%);
+}
+
+.trophy-glow {
+  text-shadow: 0 0 30px rgba(201, 167, 58, 0.8), 0 0 60px rgba(201, 167, 58, 0.4);
+}
+
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 61, 165, 0.3);
+}
+
+.chip-doubleup {
+  background: linear-gradient(135deg, #003DA5, #6366F1);
+  color: white;
+}
+
+.chip-wildcard {
+  background: linear-gradient(135deg, #7C3AED, #EC4899);
+  color: white;
+}
+
+.chip-banker {
+  background: linear-gradient(135deg, #C9A73A, #F59E0B);
+  color: black;
 }

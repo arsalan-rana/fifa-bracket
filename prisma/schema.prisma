@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model League {
+  id               String             @id @default(cuid())
+  name             String
+  slug             String             @unique
+  description      String?
+  ownerId          String
+  inviteCode       String             @unique @default(cuid())
+  createdAt        DateTime           @default(now())
+  members          LeagueMember[]
+  predictions      Prediction[]
+  bonusPredictions BonusPrediction[]
+  chipUsages       ChipUsage[]
+  leaderboard      LeaderboardEntry[]
+  activityLogs     ActivityLog[]
+}
+
+model LeagueMember {
+  id       String   @id @default(cuid())
+  leagueId String
+  league   League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+
+  @@unique([leagueId, userId])
+}
+
+model User {
+  id               String             @id @default(cuid())
+  email            String             @unique
+  name             String?
+  image            String?
+  createdAt        DateTime           @default(now())
+  memberships      LeagueMember[]
+  predictions      Prediction[]
+  bonusPredictions BonusPrediction[]
+  chipUsages       ChipUsage[]
+  leaderboard      LeaderboardEntry[]
+  accounts         Account[]
+  sessions         Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Prediction {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leagueId        String
+  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  matchNumber     Int
+  predictedWinner String
+  submittedAt     DateTime @default(now())
+  isLate          Boolean  @default(false)
+
+  @@unique([userId, leagueId, matchNumber])
+}
+
+model BonusPrediction {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leagueId    String
+  league      League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  questionId  String
+  answer      String
+  submittedAt DateTime @default(now())
+
+  @@unique([userId, leagueId, questionId])
+}
+
+model ChipUsage {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leagueId    String
+  league      League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  matchNumber Int?
+  chipType    String
+  phase       String
+  usedAt      DateTime @default(now())
+
+  @@unique([userId, leagueId, chipType, phase])
+}
+
+model FixtureResult {
+  id          String   @id @default(cuid())
+  matchNumber Int      @unique
+  result      String
+  goals1      Int?
+  goals2      Int?
+  updatedAt   DateTime @default(now())
+  updatedBy   String
+}
+
+model BonusAnswer {
+  id         String   @id @default(cuid())
+  questionId String   @unique
+  answer     String
+  updatedAt  DateTime @default(now())
+  updatedBy  String
+}
+
+model LeaderboardEntry {
+  id            String   @id @default(cuid())
+  leagueId      String
+  league        League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rank          Int      @default(0)
+  prevRank      Int?
+  totalPoints   Int      @default(0)
+  groupPoints   Int      @default(0)
+  round32Points Int      @default(0)
+  round16Points Int      @default(0)
+  quarterPoints Int      @default(0)
+  semiPoints    Int      @default(0)
+  finalPoints   Int      @default(0)
+  bonusPoints   Int      @default(0)
+  penalty       Int      @default(0)
+  updatedAt     DateTime @default(now())
+
+  @@unique([leagueId, userId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  leagueId  String?
+  league    League?  @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  userId    String?
+  eventType String
+  details   String   @db.Text
+  createdAt DateTime @default(now())
+}
