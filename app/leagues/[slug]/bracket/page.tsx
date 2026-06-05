@@ -352,6 +352,7 @@ export default function BracketPage({ params }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [chipSubmitting, setChipSubmitting] = useState(false);
   const [leagueId, setLeagueId] = useState('');
+  const [isVerified, setIsVerified] = useState(true);
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
   const [expanded, setExpanded] = useState<string>('group-A');
 
@@ -376,6 +377,7 @@ export default function BracketPage({ params }: Props) {
         if (!leagueRes.ok) return;
         const leagueData = await leagueRes.json();
         setLeagueId(leagueData.id);
+        setIsVerified(leagueData.isVerified !== false);
 
         // Get existing predictions
         const predRes = await fetch(`/api/get-predictions?leagueId=${leagueData.id}`);
@@ -557,6 +559,12 @@ export default function BracketPage({ params }: Props) {
               The deadline has passed. Submissions will be marked as late and may incur a penalty.
             </Alert>
           )}
+
+          {!isVerified && (
+            <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
+              Your buy-in payment is pending verification. You cannot submit picks until the league owner verifies your payment.
+            </Alert>
+          )}
         </Box>
 
         {/* Chips Panel — shown only when phase has chips */}
@@ -593,7 +601,8 @@ export default function BracketPage({ params }: Props) {
             variant="contained"
             size="large"
             onClick={() => handleSubmit('group')}
-            disabled={submitting || completedGroupMatches === 0}
+            disabled={submitting || completedGroupMatches === 0 || !isVerified}
+            title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
             sx={{ px: 4 }}
           >
             {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
@@ -668,7 +677,8 @@ export default function BracketPage({ params }: Props) {
             variant="contained"
             size="large"
             onClick={() => handleSubmit('group')}
-            disabled={submitting || completedGroupMatches === 0}
+            disabled={submitting || completedGroupMatches === 0 || !isVerified}
+            title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
             sx={{ px: 6, py: 1.5 }}
           >
             {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : '✅ '}

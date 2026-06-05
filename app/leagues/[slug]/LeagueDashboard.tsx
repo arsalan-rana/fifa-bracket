@@ -28,7 +28,14 @@ interface LeagueDashboardProps {
     description?: string | null;
     inviteCode: string;
     ownerId: string;
-    members: { userId: string; user: { name: string | null; email: string; image: string | null } }[];
+    isPrizePool: boolean;
+    buyInAmount?: number | string | null;
+    buyInCurrency: string;
+    members: {
+      userId: string;
+      isVerified: boolean;
+      user: { name: string | null; email: string; image: string | null };
+    }[];
     leaderboard: {
       rank: number;
       totalPoints: number;
@@ -49,11 +56,15 @@ interface LeagueDashboardProps {
 
 export default function LeagueDashboard({ league, currentUserEmail, isAdmin, currentUserId }: LeagueDashboardProps) {
   const router = useRouter();
+  const currentMembership = league.members.find((m) => m.userId === currentUserId);
+  const isCurrentUserVerified = currentMembership?.isVerified !== false;
+  const isOwnerOrAdmin = currentUserId === league.ownerId || isAdmin;
   const [copied, setCopied] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState('');
   const [kicking, setKicking] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState<string | null>(null);
 
   const currentPhase = getCurrentPhase();
   const phaseConfig = PHASES.find((p) => p.id === currentPhase);
@@ -94,6 +105,26 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
     }
   }
 
+  async function handleVerify(targetUserId: string, targetName: string) {
+    if (!window.confirm(`Mark ${targetName} as verified (paid)?`)) return;
+    setVerifying(targetUserId);
+    try {
+      const res = await fetch('/api/verify-member', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId: league.id, targetUserId }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to verify member');
+      }
+    } finally {
+      setVerifying(null);
+    }
+  }
+
   async function handleKick(targetUserId: string, targetName: string) {
     if (!window.confirm(`Remove ${targetName} from this league?`)) return;
     setKicking(targetUserId);
@@ -123,6 +154,7 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
         case 'league_created': return `League "${d.leagueName}" was created`;
         case 'leaderboard_refreshed': return `Leaderboard updated (${d.count} players)`;
         case 'member_kicked': return `A member was removed from the league`;
+        case 'member_verified': return `${d.verifiedByName} verified ${d.verifiedUserName}`;
         default: return log.eventType;
       }
     } catch {
@@ -184,6 +216,20 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
           </Box>
         </Box>
 
+        {/* Prize pool unverified banner */}
+        {league.isPrizePool && !isCurrentUserVerified && (
+          <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
+            Your buy-in of ${Number(league.buyInAmount).toFixed(2)} {league.buyInCurrency} is pending.
+            E-transfer to{' '}
+            <strong>
+              {league.members.find((m) => m.userId === league.ownerId)?.user.name ??
+                league.members.find((m) => m.userId === league.ownerId)?.user.email ??
+                'the league owner'}
+            </strong>{' '}
+            and ask them to verify you to submit picks.
+          </Alert>
+        )}
+
         {/* Phase deadline alert */}
         {phaseConfig && daysLeft >= 0 && (
           <Alert
@@ -217,6 +263,8 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
                     fullWidth
                     startIcon={<SportsSoccerIcon />}
                     onClick={() => router.push(`/leagues/${league.slug}/bracket`)}
+                    disabled={!isCurrentUserVerified}
+                    title={!isCurrentUserVerified ? 'Verify your buy-in payment to submit picks' : undefined}
                     sx={{ py: 1.5 }}
                   >
                     Submit Picks
@@ -236,6 +284,8 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
                     startIcon={<StarsIcon />}
                     color="secondary"
                     onClick={() => router.push(`/leagues/${league.slug}/bonus`)}
+                    disabled={!isCurrentUserVerified}
+                    title={!isCurrentUserVerified ? 'Verify your buy-in payment to submit bonus picks' : undefined}
                     sx={{ py: 1.5 }}
                   >
                     Bonus Picks
@@ -334,16 +384,41 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
                 </Typography>
                 {league.members.map((m) => {
                   const canKick =
-                    (currentUserId === league.ownerId || isAdmin) &&
+                    isOwnerOrAdmin &&
                     m.userId !== currentUserId &&
                     m.userId !== league.ownerId;
+                  const canVerify =
+                    isOwnerOrAdmin &&
+                    league.isPrizePool &&
+                    !m.isVerified;
                   return (
-                    <Box key={m.user.email} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75 }}>
+                    <Box key={m.user.email} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75, flexWrap: 'wrap' }}>
                       <Avatar src={m.user.image ?? undefined} sx={{ width: 28, height: 28 }} />
                       <Typography variant="body2" sx={{ fontWeight: m.user.email === currentUserEmail ? 700 : 400, flexGrow: 1 }}>
                         {m.user.name ?? m.user.email}
                         {m.user.email === currentUserEmail && ' (you)'}
                       </Typography>
+                      {isOwnerOrAdmin && league.isPrizePool && !m.isVerified && (
+                        <Chip
+                          label="Unverified"
+                          size="small"
+                          color="warning"
+                          sx={{ height: 18, fontSize: '0.65rem' }}
+                        />
+                      )}
+                      {canVerify && (
+                        <Button
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                          disabled={verifying === m.userId}
+                          onClick={() => handleVerify(m.userId, m.user.name ?? m.user.email)}
+                          sx={{ minWidth: 0, px: 1, py: 0.25, fontSize: '0.7rem', lineHeight: 1 }}
+                          title={`Mark ${m.user.name ?? m.user.email} as paid/verified`}
+                        >
+                          {verifying === m.userId ? '...' : 'Verify'}
+                        </Button>
+                      )}
                       {canKick && (
                         <Button
                           size="small"

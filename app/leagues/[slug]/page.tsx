@@ -15,7 +15,10 @@ export default async function LeaguePage({ params }: Props) {
   const league = await db.league.findUnique({
     where: { slug },
     include: {
-      members: { include: { user: true }, orderBy: { joinedAt: 'asc' } },
+      members: {
+        include: { user: true },
+        orderBy: { joinedAt: 'asc' },
+      },
       leaderboard: {
         include: { user: true },
         orderBy: { rank: 'asc' },

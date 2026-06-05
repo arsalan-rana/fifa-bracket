@@ -24,7 +24,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (alreadyMember) return res.status(400).json({ error: 'Already a member' });
 
   try {
-    await db.leagueMember.create({ data: { leagueId: league.id, userId: user.id } });
+    // New joiners to prize-pool leagues start unverified (payment pending)
+    const isVerified = !league.isPrizePool;
+    await db.leagueMember.create({ data: { leagueId: league.id, userId: user.id, isVerified } });
 
     await db.activityLog.create({
       data: {

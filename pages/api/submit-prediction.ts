@@ -29,6 +29,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     where: { leagueId_userId: { leagueId, userId: user.id } },
   });
   if (!isMember) return res.status(403).json({ error: 'Not a league member' });
+  if (!isMember.isVerified) {
+    return res.status(403).json({ error: 'Payment not verified. Please e-transfer the buy-in to the league owner.' });
+  }
 
   const isLate = isPhasePastDeadline(phase);
   const phaseConfig = getPhaseConfig(phase);

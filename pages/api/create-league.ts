@@ -21,8 +21,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: 'Only the admin can create leagues' });
   }
 
-  const { name, description } = req.body as { name: string; description?: string };
+  const { name, description, isPrizePool, buyInAmount, buyInCurrency } = req.body as {
+    name: string;
+    description?: string;
+    isPrizePool?: boolean;
+    buyInAmount?: number;
+    buyInCurrency?: string;
+  };
   if (!name?.trim()) return res.status(400).json({ error: 'League name required' });
+  if (isPrizePool && (typeof buyInAmount !== 'number' || buyInAmount <= 0)) {
+    return res.status(400).json({ error: 'A positive buy-in amount is required for prize pool leagues' });
+  }
 
   const user = await db.user.findUnique({ where: { email: session.user.email } });
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -38,7 +47,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         slug,
         description: description?.trim(),
         ownerId: user.id,
-        members: { create: { userId: user.id } },
+        isPrizePool: isPrizePool ?? false,
+        buyInAmount: isPrizePool && buyInAmount ? buyInAmount : undefined,
+        buyInCurrency: buyInCurrency ?? 'CAD',
+        members: { create: { userId: user.id, isVerified: true } },
       },
     });
 

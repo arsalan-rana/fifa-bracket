@@ -15,6 +15,9 @@ model League {
   ownerId          String
   inviteCode       String             @unique @default(cuid())
   createdAt        DateTime           @default(now())
+  isPrizePool      Boolean            @default(false)
+  buyInAmount      Decimal?           @db.Decimal(10, 2)
+  buyInCurrency    String             @default("CAD")
   members          LeagueMember[]
   predictions      Prediction[]
   bonusPredictions BonusPrediction[]
@@ -24,12 +27,13 @@ model League {
 }
 
 model LeagueMember {
-  id       String   @id @default(cuid())
-  leagueId String
-  league   League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  userId   String
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  joinedAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  leagueId   String
+  league     League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt   DateTime @default(now())
+  isVerified Boolean  @default(true)
 
   @@unique([leagueId, userId])
 }

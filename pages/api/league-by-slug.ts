@@ -23,5 +23,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
   if (!isMember) return res.status(403).json({ error: 'Not a member' });
 
-  return res.status(200).json({ id: league.id, name: league.name, slug: league.slug });
+  return res.status(200).json({
+    id: league.id,
+    name: league.name,
+    slug: league.slug,
+    isPrizePool: league.isPrizePool,
+    buyInAmount: league.buyInAmount ? Number(league.buyInAmount) : null,
+    buyInCurrency: league.buyInCurrency,
+    isVerified: isMember.isVerified,
+  });
 }

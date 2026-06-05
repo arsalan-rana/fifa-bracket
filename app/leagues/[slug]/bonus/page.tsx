@@ -29,6 +29,7 @@ export default function BonusPage({ params }: Props) {
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [leagueId, setLeagueId] = useState('');
+  const [isVerified, setIsVerified] = useState(true);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
@@ -42,6 +43,7 @@ export default function BonusPage({ params }: Props) {
         if (!leagueRes.ok) return;
         const leagueData = await leagueRes.json();
         setLeagueId(leagueData.id);
+        setIsVerified(leagueData.isVerified !== false);
 
         const predRes = await fetch(`/api/get-predictions?leagueId=${leagueData.id}`);
         if (predRes.ok) {
@@ -114,6 +116,12 @@ export default function BonusPage({ params }: Props) {
         {isPastDeadline && (
           <Alert severity="warning" sx={{ mb: 3 }}>
             Deadline has passed — submissions are late.
+          </Alert>
+        )}
+
+        {!isVerified && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            Your buy-in payment is pending verification. You cannot submit bonus answers until the league owner verifies your payment.
           </Alert>
         )}
 
@@ -204,7 +212,8 @@ export default function BonusPage({ params }: Props) {
             variant="contained"
             size="large"
             onClick={handleSubmit}
-            disabled={submitting || completedCount === 0}
+            disabled={submitting || completedCount === 0 || !isVerified}
+            title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
             sx={{ px: 6, py: 1.5 }}
           >
             {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : '⭐ '}

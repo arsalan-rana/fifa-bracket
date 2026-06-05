@@ -22,6 +22,9 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import LoginIcon from '@mui/icons-material/Login';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import InputAdornment from '@mui/material/InputAdornment';
 import { useRouter } from 'next/navigation';
 import { TOURNAMENT } from '../data/fifa-2026';
 
@@ -31,6 +34,8 @@ interface League {
   slug: string;
   description?: string;
   inviteCode: string;
+  isPrizePool?: boolean;
+  buyInAmount?: number;
   _count?: { members: number };
 }
 
@@ -44,6 +49,9 @@ export default function HomePage() {
   const [joinOpen, setJoinOpen] = useState(false);
   const [newLeagueName, setNewLeagueName] = useState('');
   const [newLeagueDesc, setNewLeagueDesc] = useState('');
+  const [newLeagueIsPrizePool, setNewLeagueIsPrizePool] = useState(false);
+  const [newLeagueBuyIn, setNewLeagueBuyIn] = useState('');
+  const [newLeagueCurrency, setNewLeagueCurrency] = useState('CAD');
   const [inviteCode, setInviteCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -67,19 +75,32 @@ export default function HomePage() {
 
   async function handleCreateLeague() {
     if (!newLeagueName.trim()) return;
+    if (newLeagueIsPrizePool && (!newLeagueBuyIn || Number(newLeagueBuyIn) <= 0)) {
+      setError('Please enter a positive buy-in amount for the prize pool.');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
       const res = await fetch('/api/create-league', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newLeagueName, description: newLeagueDesc }),
+        body: JSON.stringify({
+          name: newLeagueName,
+          description: newLeagueDesc,
+          isPrizePool: newLeagueIsPrizePool,
+          buyInAmount: newLeagueIsPrizePool ? Number(newLeagueBuyIn) : undefined,
+          buyInCurrency: newLeagueCurrency,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setCreateOpen(false);
       setNewLeagueName('');
       setNewLeagueDesc('');
+      setNewLeagueIsPrizePool(false);
+      setNewLeagueBuyIn('');
+      setNewLeagueCurrency('CAD');
       router.push(`/leagues/${data.league.slug}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to create league');
@@ -313,7 +334,42 @@ export default function HomePage() {
             onChange={(e) => setNewLeagueDesc(e.target.value)}
             multiline
             rows={2}
+            sx={{ mb: 2 }}
           />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={newLeagueIsPrizePool}
+                onChange={(e) => setNewLeagueIsPrizePool(e.target.checked)}
+                color="secondary"
+              />
+            }
+            label="Prize Pool"
+          />
+          {newLeagueIsPrizePool && (
+            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+              <TextField
+                label="Buy-in Amount"
+                type="number"
+                value={newLeagueBuyIn}
+                onChange={(e) => setNewLeagueBuyIn(e.target.value)}
+                sx={{ flex: 2 }}
+                slotProps={{
+                  input: {
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                    inputProps: { min: 1 },
+                  },
+                }}
+              />
+              <TextField
+                label="Currency"
+                value={newLeagueCurrency}
+                onChange={(e) => setNewLeagueCurrency(e.target.value)}
+                sx={{ flex: 1 }}
+                placeholder="CAD"
+              />
+            </Box>
+          )}
           {error && (
             <Typography color="error" variant="body2" sx={{ mt: 1 }}>
               {error}
