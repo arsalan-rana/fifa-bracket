@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const alreadyMember = await db.leagueMember.findUnique({
     where: { leagueId_userId: { leagueId: league.id, userId: user.id } },
   });
-  if (alreadyMember) return res.status(400).json({ error: 'Already a member' });
+  if (alreadyMember) return res.status(400).json({ error: 'Already a member', league });
 
   try {
     // New joiners to prize-pool leagues start unverified (payment pending)

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSession, signIn } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -12,6 +13,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Chip from '@mui/material/Chip';
 import GroupsIcon from '@mui/icons-material/Groups';
 import HomeIcon from '@mui/icons-material/Home';
+import LoginIcon from '@mui/icons-material/Login';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 
 interface LeagueInfo {
@@ -25,6 +27,7 @@ interface LeagueInfo {
 export default function JoinPage() {
   const params = useParams();
   const router = useRouter();
+  const { status } = useSession();
   const code = (params?.code as string) ?? '';
 
   const [league, setLeague] = useState<LeagueInfo | null>(null);
@@ -55,6 +58,10 @@ export default function JoinPage() {
   }, [code]);
 
   async function handleJoin() {
+    if (status === 'unauthenticated') {
+      signIn('google', { callbackUrl: window.location.href });
+      return;
+    }
     setJoining(true);
     setError('');
     try {
@@ -64,6 +71,10 @@ export default function JoinPage() {
         body: JSON.stringify({ inviteCode: code }),
       });
       const data = await res.json();
+      if (res.status === 400 && data.error === 'Already a member') {
+        router.push(`/leagues/${data.league?.slug ?? ''}`);
+        return;
+      }
       if (!res.ok) throw new Error(data.error);
       router.push(`/leagues/${data.league.slug}`);
     } catch (e: unknown) {
@@ -116,11 +127,17 @@ export default function JoinPage() {
                   color="secondary"
                   size="large"
                   onClick={handleJoin}
-                  disabled={joining}
-                  startIcon={joining ? <CircularProgress size={18} /> : <GroupsIcon />}
+                  disabled={joining || status === 'loading'}
+                  startIcon={
+                    joining || status === 'loading'
+                      ? <CircularProgress size={18} />
+                      : status === 'unauthenticated'
+                      ? <LoginIcon />
+                      : <GroupsIcon />
+                  }
                   sx={{ minWidth: 180 }}
                 >
-                  {joining ? 'Joining...' : 'Join League'}
+                  {joining ? 'Joining...' : status === 'unauthenticated' ? 'Sign in to join' : 'Join League'}
                 </Button>
                 {error && (
                   <Typography color="error" variant="body2">{error}</Typography>
