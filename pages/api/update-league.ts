@@ -9,11 +9,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.email) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { leagueId, isPrizePool, buyInAmount, buyInCurrency } = req.body as {
+  const { leagueId, isPrizePool, buyInAmount, buyInCurrency, resetVerification } = req.body as {
     leagueId: string;
     isPrizePool: boolean;
     buyInAmount?: number | null;
     buyInCurrency?: string;
+    resetVerification?: boolean;
   };
   if (!leagueId) return res.status(400).json({ error: 'leagueId required' });
 
@@ -40,6 +41,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       buyInCurrency: buyInCurrency ?? 'CAD',
     },
   });
+
+  if (isPrizePool && resetVerification) {
+    await db.leagueMember.updateMany({
+      where: { leagueId, userId: { not: actor.id } },
+      data: { isVerified: false },
+    });
+  }
 
   return res.status(200).json({ league: updated });
 }

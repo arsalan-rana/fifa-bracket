@@ -71,6 +71,7 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
   const [verifying, setVerifying] = useState<string | null>(null);
   const [prizePoolEnabled, setPrizePoolEnabled] = useState(league.isPrizePool);
   const [buyInAmount, setBuyInAmount] = useState(league.buyInAmount ? String(league.buyInAmount) : '');
+  const [resetVerification, setResetVerification] = useState(false);
   const [savingPrizePool, setSavingPrizePool] = useState(false);
   const [prizePoolMsg, setPrizePoolMsg] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -114,20 +115,23 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
     }
   }
 
-  async function handleVerify(targetUserId: string, targetName: string) {
-    if (!window.confirm(`Mark ${targetName} as verified (paid)?`)) return;
+  async function handleVerify(targetUserId: string, targetName: string, verified: boolean) {
+    const msg = verified
+      ? `Mark ${targetName} as paid/verified?`
+      : `Mark ${targetName} as unpaid? They won't be able to submit picks.`;
+    if (!window.confirm(msg)) return;
     setVerifying(targetUserId);
     try {
       const res = await fetch('/api/verify-member', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leagueId: league.id, targetUserId }),
+        body: JSON.stringify({ leagueId: league.id, targetUserId, verified }),
       });
       if (res.ok) {
         router.refresh();
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to verify member');
+        alert(data.error || 'Failed to update member');
       }
     } finally {
       setVerifying(null);
@@ -166,6 +170,7 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
           isPrizePool: prizePoolEnabled,
           buyInAmount: prizePoolEnabled ? parseFloat(buyInAmount) : null,
           buyInCurrency: 'CAD',
+          resetVerification: prizePoolEnabled && resetVerification,
         }),
       });
       const data = await res.json();
@@ -443,51 +448,57 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
                     isOwnerOrAdmin &&
                     m.userId !== currentUserId &&
                     m.userId !== league.ownerId;
-                  const canVerify =
-                    isOwnerOrAdmin &&
-                    league.isPrizePool &&
-                    !m.isVerified;
+                  const isPrizePoolLeague = league.isPrizePool;
+                  const canToggleVerify = isOwnerOrAdmin && isPrizePoolLeague && m.userId !== league.ownerId;
                   return (
-                    <Box key={m.user.email} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75, flexWrap: 'wrap' }}>
-                      <Avatar src={m.user.image ?? undefined} sx={{ width: 28, height: 28 }} />
-                      <Typography variant="body2" sx={{ fontWeight: m.user.email === currentUserEmail ? 700 : 400, flexGrow: 1 }}>
-                        {m.user.name ?? m.user.email}
-                        {m.user.email === currentUserEmail && ' (you)'}
-                      </Typography>
-                      {isOwnerOrAdmin && league.isPrizePool && !m.isVerified && (
-                        <Chip
-                          label="Unverified"
-                          size="small"
-                          color="warning"
-                          sx={{ height: 18, fontSize: '0.65rem' }}
-                        />
-                      )}
-                      {canVerify && (
-                        <Button
-                          size="small"
-                          color="success"
-                          variant="outlined"
-                          disabled={verifying === m.userId}
-                          onClick={() => handleVerify(m.userId, m.user.name ?? m.user.email)}
-                          sx={{ minWidth: 0, px: 1, py: 0.25, fontSize: '0.7rem', lineHeight: 1 }}
-                          title={`Mark ${m.user.name ?? m.user.email} as paid/verified`}
-                        >
-                          {verifying === m.userId ? '...' : 'Verify'}
-                        </Button>
-                      )}
-                      {canKick && (
-                        <Button
-                          size="small"
-                          color="error"
-                          variant="text"
-                          disabled={kicking === m.userId}
-                          onClick={() => handleKick(m.userId, m.user.name ?? m.user.email)}
-                          sx={{ minWidth: 0, px: 0.5, py: 0.25, fontSize: '1rem', lineHeight: 1 }}
-                          title={`Remove ${m.user.name ?? m.user.email}`}
-                        >
-                          {kicking === m.userId ? '...' : '×'}
-                        </Button>
-                      )}
+                    <Box key={m.user.email} sx={{ py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.04)', '&:last-child': { borderBottom: 'none' } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                        <Avatar src={m.user.image ?? undefined} sx={{ width: 28, height: 28 }} />
+                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                          <Typography variant="body2" sx={{ fontWeight: m.user.email === currentUserEmail ? 700 : 400 }}>
+                            {m.user.name ?? m.user.email}
+                            {m.user.email === currentUserEmail && ' (you)'}
+                          </Typography>
+                          {isOwnerOrAdmin && isPrizePoolLeague && !m.isVerified && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                              {m.user.email}
+                            </Typography>
+                          )}
+                        </Box>
+                        {isPrizePoolLeague && (
+                          <Chip
+                            label={m.isVerified ? 'Paid' : 'Unpaid'}
+                            size="small"
+                            color={m.isVerified ? 'success' : 'warning'}
+                            sx={{ height: 18, fontSize: '0.65rem' }}
+                          />
+                        )}
+                        {canToggleVerify && (
+                          <Button
+                            size="small"
+                            color={m.isVerified ? 'warning' : 'success'}
+                            variant="outlined"
+                            disabled={verifying === m.userId}
+                            onClick={() => handleVerify(m.userId, m.user.name ?? m.user.email, !m.isVerified)}
+                            sx={{ minWidth: 0, px: 1, py: 0.25, fontSize: '0.7rem', lineHeight: 1 }}
+                          >
+                            {verifying === m.userId ? '...' : m.isVerified ? 'Unpaid' : 'Verify'}
+                          </Button>
+                        )}
+                        {canKick && (
+                          <Button
+                            size="small"
+                            color="error"
+                            variant="text"
+                            disabled={kicking === m.userId}
+                            onClick={() => handleKick(m.userId, m.user.name ?? m.user.email)}
+                            sx={{ minWidth: 0, px: 0.5, py: 0.25, fontSize: '1rem', lineHeight: 1 }}
+                            title={`Remove ${m.user.name ?? m.user.email}`}
+                          >
+                            {kicking === m.userId ? '...' : '×'}
+                          </Button>
+                        )}
+                      </Box>
                     </Box>
                   );
                 })}
@@ -551,15 +562,29 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
                       label="Prize Pool"
                     />
                     {prizePoolEnabled && (
-                      <TextField
-                        size="small"
-                        label="Buy-in (CAD)"
-                        type="number"
-                        value={buyInAmount}
-                        onChange={(e) => { setBuyInAmount(e.target.value); setPrizePoolMsg(''); }}
-                        sx={{ mt: 1, width: '100%' }}
-                        slotProps={{ input: { startAdornment: <Typography sx={{ mr: 0.5, color: 'text.secondary' }}>$</Typography> }, htmlInput: { min: 1 } }}
-                      />
+                      <>
+                        <TextField
+                          size="small"
+                          label="Buy-in (CAD)"
+                          type="number"
+                          value={buyInAmount}
+                          onChange={(e) => { setBuyInAmount(e.target.value); setPrizePoolMsg(''); }}
+                          sx={{ mt: 1, width: '100%' }}
+                          slotProps={{ input: { startAdornment: <Typography sx={{ mr: 0.5, color: 'text.secondary' }}>$</Typography> }, htmlInput: { min: 1 } }}
+                        />
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              size="small"
+                              checked={resetVerification}
+                              onChange={(e) => setResetVerification(e.target.checked)}
+                              color="warning"
+                            />
+                          }
+                          label={<Typography variant="caption">Mark all existing members as unpaid</Typography>}
+                          sx={{ mt: 1, display: 'flex' }}
+                        />
+                      </>
                     )}
                     <Button
                       size="small"

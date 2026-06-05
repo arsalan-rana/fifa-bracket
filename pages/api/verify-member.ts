@@ -9,7 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.email) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { leagueId, targetUserId } = req.body as { leagueId: string; targetUserId: string };
+  const { leagueId, targetUserId, verified = true } = req.body as { leagueId: string; targetUserId: string; verified?: boolean };
   if (!leagueId || !targetUserId) {
     return res.status(400).json({ error: 'leagueId and targetUserId are required' });
   }
@@ -31,20 +31,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
   if (!member) return res.status(404).json({ error: 'Member not found in this league' });
 
-  if (member.isVerified) {
-    return res.status(400).json({ error: 'Member is already verified' });
-  }
-
   await db.leagueMember.update({
     where: { leagueId_userId: { leagueId, userId: targetUserId } },
-    data: { isVerified: true },
+    data: { isVerified: verified },
   });
 
   await db.activityLog.create({
     data: {
       leagueId,
       userId: actor.id,
-      eventType: 'member_verified',
+      eventType: verified ? 'member_verified' : 'member_unverified',
       details: JSON.stringify({
         verifiedUserName: member.user.name ?? member.user.email,
         verifiedUserId: targetUserId,
