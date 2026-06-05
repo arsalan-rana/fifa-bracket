@@ -21,6 +21,7 @@ import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import StarsIcon from '@mui/icons-material/Stars';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import LogoutIcon from '@mui/icons-material/Logout';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 
@@ -42,6 +43,9 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const isAdminUser = !!adminEmail && session?.user?.email === adminEmail;
 
   const basePath = leagueSlug ? `/leagues/${leagueSlug}` : '';
 
@@ -112,6 +116,27 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
             </Box>
           )}
 
+          {/* Admin link (desktop) */}
+          {isAdminUser && (
+            <Button
+              color="inherit"
+              startIcon={<AdminPanelSettingsIcon fontSize="small" />}
+              href="/admin"
+              component={Link}
+              sx={{
+                borderRadius: 2,
+                px: 1.5,
+                fontWeight: pathname === '/admin' ? 700 : 400,
+                background: pathname === '/admin' ? 'rgba(201,167,58,0.2)' : 'transparent',
+                color: pathname === '/admin' ? '#C9A73A' : 'rgba(255,255,255,0.8)',
+                '&:hover': { background: 'rgba(255,255,255,0.08)' },
+                display: { xs: 'none', md: 'flex' },
+              }}
+            >
+              Admin
+            </Button>
+          )}
+
           <Box sx={{ flexGrow: 1 }} />
 
           {/* User avatar */}
@@ -152,6 +177,19 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
                 </ListItemButton>
               </ListItem>
             ))}
+            {isAdminUser && (
+              <ListItem disablePadding>
+                <ListItemButton
+                  onClick={() => { setDrawerOpen(false); router.push('/admin'); }}
+                  selected={pathname === '/admin'}
+                >
+                  <Box sx={{ mr: 1.5, display: 'flex', alignItems: 'center' }}>
+                    <AdminPanelSettingsIcon fontSize="small" />
+                  </Box>
+                  <ListItemText primary="Admin" />
+                </ListItemButton>
+              </ListItem>
+            )}
             <ListItem disablePadding>
               <ListItemButton onClick={() => signOut({ callbackUrl: '/' })}>
                 <Box sx={{ mr: 1.5, display: 'flex', alignItems: 'center' }}>

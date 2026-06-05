@@ -17,6 +17,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import Link from 'next/link';
 import { PHASES, getCurrentPhase } from '../../../data/fifa-2026';
 
 interface LeagueDashboardProps {
@@ -415,6 +416,16 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
                   {refreshMsg && (
                     <Typography variant="caption" color="success.main">{refreshMsg}</Typography>
                   )}
+                  <Button
+                    variant="outlined"
+                    color="secondary"
+                    fullWidth
+                    component={Link}
+                    href="/admin"
+                    sx={{ mt: 1 }}
+                  >
+                    Enter Results
+                  </Button>
                 </CardContent>
               </Card>
             )}

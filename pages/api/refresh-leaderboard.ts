@@ -7,6 +7,7 @@ import {
   GROUP_FIXTURES,
   ALL_FIXTURES,
   TOURNAMENT,
+  BONUS_QUESTIONS,
   type Phase,
 } from '../../data/fifa-2026';
 import { calcGroupPoints, calcPoolPoints, calcBonusPoints } from '../../lib/tournament';
@@ -77,8 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const bonusPoints = calcBonusPoints(
           userBonus.map((b) => ({ questionId: b.questionId, answer: b.answer })),
           bonusAnswers.map((a) => ({ questionId: a.questionId, answer: a.answer })),
-          TOURNAMENT.scoring.bonusPointsPerCorrect,
-          TOURNAMENT.scoring.bonusPointsCap
+          BONUS_QUESTIONS,
         );
 
         // Late penalty

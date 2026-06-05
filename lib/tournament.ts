@@ -100,8 +100,7 @@ export function calcPoolPoints(
 export function calcBonusPoints(
   predictions: { questionId: string; answer: string }[],
   answers: { questionId: string; answer: string }[],
-  pointsPerCorrect: number,
-  cap: number
+  questions: { id: string; points: number }[],
 ): number {
   let total = 0;
 
@@ -111,8 +110,11 @@ export function calcBonusPoints(
 
     const isCorrect =
       pred.answer.trim().toLowerCase() === answer.answer.trim().toLowerCase();
-    if (isCorrect) total += pointsPerCorrect;
+    if (isCorrect) {
+      const question = questions.find((q) => q.id === pred.questionId);
+      total += question?.points ?? 0;
+    }
   }
 
-  return Math.min(total, cap);
+  return total;
 }

@@ -48,6 +48,7 @@ export interface BonusQuestion {
   phase: Phase;
   options?: string[]; // if multiple choice
   type: 'text' | 'team' | 'number';
+  points: number;
   aiPrediction?: string;
 }
 
@@ -74,7 +75,6 @@ export interface TournamentConfig {
   scoring: {
     latePenaltyPerDay: number;
     bonusPointsPerCorrect: number;
-    bonusPointsCap: number;
   };
 }
 
@@ -314,6 +314,7 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     question: 'Who will win the Golden Boot (top scorer)?',
     phase: 'group',
     type: 'text',
+    points: 40,
     aiPrediction: 'Kylian Mbappé (France)',
   },
   {
@@ -321,6 +322,7 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     question: 'Who will win the Golden Ball (best player)?',
     phase: 'group',
     type: 'text',
+    points: 30,
     aiPrediction: 'Lionel Messi (Argentina)',
   },
   {
@@ -328,6 +330,7 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     question: 'Who will win the Golden Glove (best goalkeeper)?',
     phase: 'group',
     type: 'text',
+    points: 30,
     aiPrediction: 'Thibaut Courtois (Belgium)',
   },
   {
@@ -335,13 +338,15 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     question: 'Which country will win the FIFA World Cup 2026?',
     phase: 'group',
     type: 'team',
+    points: 25,
     aiPrediction: 'FRA',
   },
   {
     id: 'total-goals',
-    question: 'How many total goals will be scored in the tournament? (closest wins)',
+    question: 'How many total goals will be scored in the tournament? (closest answer wins)',
     phase: 'group',
     type: 'number',
+    points: 40,
     aiPrediction: '168',
   },
   {
@@ -350,6 +355,7 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     phase: 'group',
     type: 'text',
     options: ['Yes', 'No'],
+    points: 10,
     aiPrediction: 'Yes',
   },
   {
@@ -358,6 +364,7 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     phase: 'group',
     type: 'text',
     options: ['Yes', 'No'],
+    points: 10,
     aiPrediction: 'Yes',
   },
   {
@@ -366,7 +373,35 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     phase: 'group',
     type: 'text',
     options: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'],
+    points: 20,
     aiPrediction: 'C',
+  },
+  {
+    id: 'host-canada-knockouts',
+    question: 'Will host nation Canada reach the Round of 16 or further?',
+    phase: 'group',
+    type: 'text',
+    options: ['Yes', 'No'],
+    points: 10,
+    aiPrediction: 'Yes',
+  },
+  {
+    id: 'host-mexico-knockouts',
+    question: 'Will host nation Mexico win Group A?',
+    phase: 'group',
+    type: 'text',
+    options: ['Yes', 'No'],
+    points: 15,
+    aiPrediction: 'Yes',
+  },
+  {
+    id: 'best-host-nation',
+    question: 'Which host nation will finish highest in the tournament?',
+    phase: 'group',
+    type: 'text',
+    options: ['USA', 'Mexico', 'Canada'],
+    points: 20,
+    aiPrediction: 'USA',
   },
 ];
 
@@ -466,7 +501,6 @@ export const TOURNAMENT: TournamentConfig = {
   scoring: {
     latePenaltyPerDay: 5,
     bonusPointsPerCorrect: 20,
-    bonusPointsCap: 120,
   },
 };
 

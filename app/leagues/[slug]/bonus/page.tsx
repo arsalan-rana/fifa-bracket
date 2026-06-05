@@ -108,7 +108,7 @@ export default function BonusPage({ params }: Props) {
           Bonus Questions
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 3 }}>
-          Answer all questions before the Group Stage deadline for bonus points. 20 pts each, max 120 pts.
+          Answer all questions before the Group Stage deadline for bonus points. Points vary by question difficulty.
         </Typography>
 
         {isPastDeadline && (
@@ -126,7 +126,7 @@ export default function BonusPage({ params }: Props) {
                     {q.question}
                   </Typography>
                   <Chip
-                    label={`20 pts`}
+                    label={`${q.points} pts`}
                     size="small"
                     sx={{ background: 'rgba(201,167,58,0.15)', color: '#C9A73A', fontWeight: 700 }}
                   />

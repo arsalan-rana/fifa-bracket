@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -16,6 +16,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Snackbar from '@mui/material/Snackbar';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
+import Paper from '@mui/material/Paper';
 import {
   GROUPS,
   GROUP_FIXTURES,
@@ -32,6 +33,20 @@ interface Props {
 }
 
 type Predictions = Record<number, string>; // matchNumber → winner code
+type ChipType = 'doubleUp' | 'wildcard';
+
+interface ChipUsage {
+  matchNumber: number;
+  chipType: string;
+  phase: string;
+}
+
+// Keyed by `${phase}:${chipType}` → ChipUsage
+type ChipsState = Record<string, ChipUsage>;
+
+function matchHasStarted(fixture: Fixture): boolean {
+  return new Date(fixture.date) <= new Date();
+}
 
 function MatchCard({
   fixture,
@@ -39,16 +54,23 @@ function MatchCard({
   onSelect,
   disabled,
   chipActive,
+  chipMode,
+  onApplyChip,
 }: {
   fixture: Fixture;
   selected?: string;
   onSelect: (winner: string) => void;
   disabled: boolean;
   chipActive?: string; // chip type applied to this match
+  chipMode: ChipType | null;
+  onApplyChip?: (matchNumber: number) => void;
 }) {
   const team1 = TEAMS[fixture.team1];
   const team2 = TEAMS[fixture.team2];
   const matchDate = new Date(fixture.date);
+  const started = matchHasStarted(fixture);
+
+  const canPlaceChip = chipMode !== null && !started;
 
   const opts = [
     { code: fixture.team1, label: team1?.name ?? fixture.team1, flag: team1?.flag ?? '' },
@@ -57,18 +79,37 @@ function MatchCard({
   ];
 
   return (
-    <Card sx={{ mb: 1.5, background: selected ? 'rgba(0,61,165,0.12)' : '#111827', border: selected ? '1px solid rgba(0,61,165,0.4)' : '1px solid rgba(255,255,255,0.06)' }}>
+    <Card
+      sx={{
+        mb: 1.5,
+        background: selected ? 'rgba(0,61,165,0.12)' : '#111827',
+        border: canPlaceChip
+          ? '2px dashed rgba(201,167,58,0.7)'
+          : selected
+          ? '1px solid rgba(0,61,165,0.4)'
+          : '1px solid rgba(255,255,255,0.06)',
+        position: 'relative',
+        transition: 'border 0.2s',
+      }}
+    >
       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
           <Typography variant="caption" color="text.secondary">
-            Match {fixture.matchNumber} · {fixture.city} · {matchDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            Match {fixture.matchNumber} · {fixture.city} ·{' '}
+            {matchDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </Typography>
           {chipActive && (
             <Chip
-              label={chipActive === 'doubleUp' ? '2x' : chipActive === 'banker' ? '3x Banker' : chipActive}
+              label={chipActive === 'doubleUp' ? '⚡ 2×' : '🃏 Wildcard'}
               size="small"
-              className={chipActive === 'doubleUp' ? 'chip-doubleup' : chipActive === 'banker' ? 'chip-banker' : 'chip-wildcard'}
-              sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }}
+              sx={{
+                height: 20,
+                fontSize: '0.65rem',
+                fontWeight: 700,
+                background: chipActive === 'doubleUp' ? 'rgba(201,167,58,0.25)' : 'rgba(139,92,246,0.25)',
+                color: chipActive === 'doubleUp' ? '#C9A73A' : '#A78BFA',
+                border: `1px solid ${chipActive === 'doubleUp' ? '#C9A73A' : '#A78BFA'}`,
+              }}
             />
           )}
         </Box>
@@ -80,8 +121,8 @@ function MatchCard({
               variant={selected === opt.code ? 'contained' : 'outlined'}
               color={selected === opt.code ? 'primary' : 'inherit'}
               size="small"
-              onClick={() => !disabled && onSelect(opt.code)}
-              disabled={disabled}
+              onClick={() => !disabled && !chipMode && onSelect(opt.code)}
+              disabled={disabled || !!chipMode}
               sx={{
                 flex: 1,
                 minWidth: 80,
@@ -97,18 +138,219 @@ function MatchCard({
             </Button>
           ))}
         </Box>
+
+        {/* Chip placement overlay */}
+        {canPlaceChip && (
+          <Box sx={{ mt: 1.5 }}>
+            <Button
+              fullWidth
+              variant="outlined"
+              size="small"
+              onClick={() => onApplyChip?.(fixture.matchNumber)}
+              sx={{
+                borderColor: '#C9A73A',
+                color: '#C9A73A',
+                fontWeight: 700,
+                fontSize: '0.75rem',
+                py: 0.5,
+                '&:hover': { background: 'rgba(201,167,58,0.1)', borderColor: '#C9A73A' },
+              }}
+            >
+              {chipMode === 'doubleUp' ? '⚡ Apply Double Up here' : '🃏 Apply Wildcard here'}
+            </Button>
+          </Box>
+        )}
+
+        {chipMode !== null && started && (
+          <Box sx={{ mt: 1, opacity: 0.4 }}>
+            <Typography variant="caption" color="text.secondary">
+              Match already started — chip unavailable
+            </Typography>
+          </Box>
+        )}
       </CardContent>
     </Card>
   );
 }
 
+// ─── Chips Panel ──────────────────────────────────────────────────────────────
+
+interface ChipsPanelProps {
+  phase: Phase;
+  chips: ChipsState;
+  chipMode: ChipType | null;
+  onSelectChipMode: (mode: ChipType | null) => void;
+  onRemoveChip: (chipType: ChipType) => void;
+}
+
+function ChipsPanel({ phase, chips, chipMode, onSelectChipMode, onRemoveChip }: ChipsPanelProps) {
+  const phaseConfig = PHASES.find((p) => p.id === phase)!;
+  const availableChips = phaseConfig.chipsAvailable as ChipType[];
+
+  if (availableChips.length === 0) return null;
+
+  function getChipUsage(chipType: ChipType): ChipUsage | undefined {
+    return chips[`${phase}:${chipType}`];
+  }
+
+  function getMatchLabel(matchNumber: number): string {
+    const fixture = GROUP_FIXTURES.find((f) => f.matchNumber === matchNumber);
+    if (!fixture) return `Match ${matchNumber}`;
+    const t1 = TEAMS[fixture.team1];
+    const t2 = TEAMS[fixture.team2];
+    return `Match ${matchNumber}: ${t1?.flag ?? ''} ${t1?.code ?? fixture.team1} vs ${t2?.flag ?? ''} ${t2?.code ?? fixture.team2}`;
+  }
+
+  function canRemoveChip(chipType: ChipType): boolean {
+    const usage = getChipUsage(chipType);
+    if (!usage) return false;
+    const fixture = GROUP_FIXTURES.find((f) => f.matchNumber === usage.matchNumber);
+    if (!fixture) return false;
+    return !matchHasStarted(fixture);
+  }
+
+  const chipDefs: { type: ChipType; icon: string; name: string; description: string }[] = [
+    { type: 'doubleUp', icon: '⚡', name: 'Double Up', description: 'Apply to 1 match for 2× points' },
+    { type: 'wildcard', icon: '🃏', name: 'Wildcard', description: 'Change 1 pick after deadline' },
+  ];
+
+  const visibleChips = chipDefs.filter((c) => availableChips.includes(c.type));
+
+  return (
+    <Paper
+      sx={{
+        p: 2,
+        mb: 3,
+        background: '#111827',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 2,
+      }}
+    >
+      <Typography
+        variant="subtitle2"
+        sx={{ fontWeight: 700, mb: 1.5, color: '#C9A73A', textTransform: 'uppercase', letterSpacing: 1 }}
+      >
+        🎰 Power Chips
+      </Typography>
+      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+        {visibleChips.map(({ type, icon, name, description }) => {
+          const usage = getChipUsage(type);
+          const isUsed = !!usage;
+          const isActive = chipMode === type;
+          const removable = canRemoveChip(type);
+
+          return (
+            <Box
+              key={type}
+              sx={{
+                flex: '1 1 200px',
+                p: 1.5,
+                borderRadius: 2,
+                border: isActive
+                  ? '2px solid #C9A73A'
+                  : isUsed
+                  ? '1px solid rgba(255,255,255,0.12)'
+                  : '1px solid rgba(255,255,255,0.08)',
+                background: isActive
+                  ? 'rgba(201,167,58,0.1)'
+                  : isUsed
+                  ? 'rgba(255,255,255,0.03)'
+                  : 'rgba(255,255,255,0.02)',
+                transition: 'all 0.2s',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                <Typography variant="body1">{icon}</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  {name}
+                </Typography>
+                {isUsed && (
+                  <Chip
+                    label="Used"
+                    size="small"
+                    sx={{
+                      height: 16,
+                      fontSize: '0.6rem',
+                      background: 'rgba(255,255,255,0.08)',
+                      color: 'text.secondary',
+                    }}
+                  />
+                )}
+                {!isUsed && (
+                  <Chip
+                    label="Available"
+                    size="small"
+                    sx={{
+                      height: 16,
+                      fontSize: '0.6rem',
+                      background: 'rgba(34,197,94,0.15)',
+                      color: '#22C55E',
+                    }}
+                  />
+                )}
+              </Box>
+
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                {description}
+              </Typography>
+
+              {isUsed ? (
+                <Box>
+                  <Typography variant="caption" sx={{ color: '#C9A73A', display: 'block', mb: 0.5 }}>
+                    {getMatchLabel(usage.matchNumber)}
+                  </Typography>
+                  {removable && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="warning"
+                      onClick={() => onRemoveChip(type)}
+                      sx={{ fontSize: '0.7rem', py: 0.25, px: 1, minHeight: 0 }}
+                    >
+                      Change
+                    </Button>
+                  )}
+                </Box>
+              ) : (
+                <Button
+                  size="small"
+                  variant={isActive ? 'contained' : 'outlined'}
+                  onClick={() => onSelectChipMode(isActive ? null : type)}
+                  sx={{
+                    fontSize: '0.7rem',
+                    py: 0.5,
+                    fontWeight: 700,
+                    ...(isActive
+                      ? { background: '#C9A73A', color: '#000', '&:hover': { background: '#b8952e' } }
+                      : {
+                          borderColor: '#C9A73A',
+                          color: '#C9A73A',
+                          '&:hover': { background: 'rgba(201,167,58,0.1)', borderColor: '#C9A73A' },
+                        }),
+                  }}
+                >
+                  {isActive ? '✕ Cancel' : 'Select Match →'}
+                </Button>
+              )}
+            </Box>
+          );
+        })}
+      </Box>
+    </Paper>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function BracketPage({ params }: Props) {
   const { slug } = use(params);
 
   const [predictions, setPredictions] = useState<Predictions>({});
-  const [chips, setChips] = useState<Record<string, { matchNumber: number; chipType: string }>>({});
+  const [chips, setChips] = useState<ChipsState>({});
+  const [chipMode, setChipMode] = useState<ChipType | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [chipSubmitting, setChipSubmitting] = useState(false);
   const [leagueId, setLeagueId] = useState('');
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
   const [expanded, setExpanded] = useState<string>('group-A');
@@ -116,6 +358,15 @@ export default function BracketPage({ params }: Props) {
   const currentPhase = getCurrentPhase();
   const phaseConfig = PHASES.find((p) => p.id === currentPhase)!;
   const isPastDeadline = isPhasePastDeadline(currentPhase);
+
+  // ESC to cancel chip mode
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setChipMode(null);
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -133,8 +384,15 @@ export default function BracketPage({ params }: Props) {
           const predMap: Predictions = {};
           for (const p of data.predictions) predMap[p.matchNumber] = p.predictedWinner;
           setPredictions(predMap);
-          const chipMap: Record<string, { matchNumber: number; chipType: string }> = {};
-          for (const c of data.chips) chipMap[c.phase] = { matchNumber: c.matchNumber, chipType: c.chipType };
+
+          const chipMap: ChipsState = {};
+          for (const c of data.chips) {
+            chipMap[`${c.phase}:${c.chipType}`] = {
+              matchNumber: c.matchNumber,
+              chipType: c.chipType,
+              phase: c.phase,
+            };
+          }
           setChips(chipMap);
         }
       } finally {
@@ -154,6 +412,63 @@ export default function BracketPage({ params }: Props) {
 
   function groupCompletionCount(group: string): number {
     return getGroupFixtures(group).filter((f) => predictions[f.matchNumber]).length;
+  }
+
+  /** Returns the chipType applied to a given match in the current phase, if any */
+  function getChipForMatch(matchNumber: number): string | undefined {
+    for (const key of Object.keys(chips)) {
+      const usage = chips[key];
+      if (usage.phase === currentPhase && usage.matchNumber === matchNumber) {
+        return usage.chipType;
+      }
+    }
+    return undefined;
+  }
+
+  const handleApplyChip = useCallback(
+    async (matchNumber: number) => {
+      if (!chipMode || !leagueId || chipSubmitting) return;
+      setChipSubmitting(true);
+      try {
+        const res = await fetch('/api/submit-chips', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ leagueId, phase: currentPhase, chipType: chipMode, matchNumber }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setChips((prev) => ({
+            ...prev,
+            [`${currentPhase}:${chipMode}`]: { matchNumber, chipType: chipMode, phase: currentPhase },
+          }));
+          setSnack({
+            msg:
+              chipMode === 'doubleUp'
+                ? `⚡ Double Up applied to Match ${matchNumber}!`
+                : `🃏 Wildcard applied to Match ${matchNumber}!`,
+            severity: 'success',
+          });
+          setChipMode(null);
+        } else {
+          setSnack({ msg: data.error || 'Failed to apply chip', severity: 'error' });
+        }
+      } catch {
+        setSnack({ msg: 'Network error', severity: 'error' });
+      } finally {
+        setChipSubmitting(false);
+      }
+    },
+    [chipMode, leagueId, currentPhase, chipSubmitting],
+  );
+
+  function handleRemoveChip(chipType: ChipType) {
+    // Enter chip mode for re-placement (remove from local state, let user pick new match)
+    setChips((prev) => {
+      const next = { ...prev };
+      delete next[`${currentPhase}:${chipType}`];
+      return next;
+    });
+    setChipMode(chipType);
   }
 
   async function handleSubmit(phase: Phase) {
@@ -244,6 +559,34 @@ export default function BracketPage({ params }: Props) {
           )}
         </Box>
 
+        {/* Chips Panel — shown only when phase has chips */}
+        {phaseConfig.chipsAvailable.length > 0 && (
+          <ChipsPanel
+            phase={currentPhase}
+            chips={chips}
+            chipMode={chipMode}
+            onSelectChipMode={setChipMode}
+            onRemoveChip={handleRemoveChip}
+          />
+        )}
+
+        {/* Chip placement banner */}
+        {chipMode && (
+          <Alert
+            severity="info"
+            sx={{ mb: 2, borderRadius: 2, background: 'rgba(201,167,58,0.1)', color: '#C9A73A', border: '1px solid rgba(201,167,58,0.4)' }}
+            action={
+              <Button color="inherit" size="small" onClick={() => setChipMode(null)} sx={{ fontWeight: 700 }}>
+                Cancel (ESC)
+              </Button>
+            }
+          >
+            🎯 Select a match below to apply your{' '}
+            <strong>{chipMode === 'doubleUp' ? '⚡ Double Up' : '🃏 Wildcard'}</strong> chip
+            {chipSubmitting && <CircularProgress size={14} sx={{ ml: 1, verticalAlign: 'middle' }} />}
+          </Alert>
+        )}
+
         {/* Save all button */}
         <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
           <Button
@@ -279,18 +622,19 @@ export default function BracketPage({ params }: Props) {
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-                  <Typography sx={{ fontWeight: 800, minWidth: 80 }}>
-                    Group {group}
-                  </Typography>
+                  <Typography sx={{ fontWeight: 800, minWidth: 80 }}>Group {group}</Typography>
                   <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flexGrow: 1 }}>
-                    {teams.map((t) => t && (
-                      <Chip
-                        key={t.code}
-                        label={`${t.flag} ${t.code}`}
-                        size="small"
-                        sx={{ fontSize: '0.7rem', height: 20, background: `${t.primaryColor}22`, color: '#fff' }}
-                      />
-                    ))}
+                    {teams.map(
+                      (t) =>
+                        t && (
+                          <Chip
+                            key={t.code}
+                            label={`${t.flag} ${t.code}`}
+                            size="small"
+                            sx={{ fontSize: '0.7rem', height: 20, background: `${t.primaryColor}22`, color: '#fff' }}
+                          />
+                        ),
+                    )}
                   </Box>
                   <Chip
                     label={`${done}/${fixtures.length}`}
@@ -308,6 +652,9 @@ export default function BracketPage({ params }: Props) {
                     selected={predictions[fixture.matchNumber]}
                     onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
                     disabled={false}
+                    chipActive={getChipForMatch(fixture.matchNumber)}
+                    chipMode={chipMode}
+                    onApplyChip={handleApplyChip}
                   />
                 ))}
               </AccordionDetails>
