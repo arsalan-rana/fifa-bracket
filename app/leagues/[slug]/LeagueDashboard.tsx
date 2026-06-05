@@ -10,11 +10,15 @@ import Chip from '@mui/material/Chip';
 import Avatar from '@mui/material/Avatar';
 import Divider from '@mui/material/Divider';
 import Alert from '@mui/material/Alert';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import TextField from '@mui/material/TextField';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import StarsIcon from '@mui/icons-material/Stars';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -65,6 +69,11 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
   const [refreshMsg, setRefreshMsg] = useState('');
   const [kicking, setKicking] = useState<string | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [prizePoolEnabled, setPrizePoolEnabled] = useState(league.isPrizePool);
+  const [buyInAmount, setBuyInAmount] = useState(league.buyInAmount ? String(league.buyInAmount) : '');
+  const [savingPrizePool, setSavingPrizePool] = useState(false);
+  const [prizePoolMsg, setPrizePoolMsg] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const currentPhase = getCurrentPhase();
   const phaseConfig = PHASES.find((p) => p.id === currentPhase);
@@ -142,6 +151,53 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
       }
     } finally {
       setKicking(null);
+    }
+  }
+
+  async function handleSavePrizePool() {
+    setSavingPrizePool(true);
+    setPrizePoolMsg('');
+    try {
+      const res = await fetch('/api/update-league', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leagueId: league.id,
+          isPrizePool: prizePoolEnabled,
+          buyInAmount: prizePoolEnabled ? parseFloat(buyInAmount) : null,
+          buyInCurrency: 'CAD',
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPrizePoolMsg('Saved');
+        router.refresh();
+      } else {
+        setPrizePoolMsg(data.error || 'Failed to save');
+      }
+    } finally {
+      setSavingPrizePool(false);
+    }
+  }
+
+  async function handleDeleteLeague() {
+    if (!window.confirm(`Permanently delete "${league.name}"? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/delete-league', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId: league.id }),
+      });
+      if (res.ok) {
+        router.push('/');
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete league');
+        setDeleting(false);
+      }
+    } catch {
+      setDeleting(false);
     }
   }
 
@@ -471,35 +527,98 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
               </CardContent>
             </Card>
 
-            {/* Admin controls */}
-            {isAdmin && (
+            {/* Owner / Admin controls */}
+            {isOwnerOrAdmin && (
               <Card sx={{ border: '1px solid rgba(201,167,58,0.3)' }}>
                 <CardContent>
                   <Typography variant="h6" sx={{ fontWeight: 700 }} gutterBottom color="secondary">
-                    Admin Controls
+                    League Controls
                   </Typography>
-                  <Button
-                    variant="contained"
-                    color="secondary"
-                    fullWidth
-                    onClick={refreshLeaderboard}
-                    disabled={refreshing}
-                    sx={{ mb: 1 }}
-                  >
-                    {refreshing ? 'Refreshing...' : 'Refresh Leaderboard'}
-                  </Button>
-                  {refreshMsg && (
-                    <Typography variant="caption" color="success.main">{refreshMsg}</Typography>
+
+                  {/* Prize pool toggle */}
+                  <Box sx={{ mb: 2 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={prizePoolEnabled}
+                          onChange={(e) => {
+                            setPrizePoolEnabled(e.target.checked);
+                            setPrizePoolMsg('');
+                          }}
+                          color="secondary"
+                        />
+                      }
+                      label="Prize Pool"
+                    />
+                    {prizePoolEnabled && (
+                      <TextField
+                        size="small"
+                        label="Buy-in (CAD)"
+                        type="number"
+                        value={buyInAmount}
+                        onChange={(e) => { setBuyInAmount(e.target.value); setPrizePoolMsg(''); }}
+                        sx={{ mt: 1, width: '100%' }}
+                        slotProps={{ input: { startAdornment: <Typography sx={{ mr: 0.5, color: 'text.secondary' }}>$</Typography> }, htmlInput: { min: 1 } }}
+                      />
+                    )}
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="secondary"
+                      fullWidth
+                      onClick={handleSavePrizePool}
+                      disabled={savingPrizePool || (prizePoolEnabled && !buyInAmount)}
+                      sx={{ mt: 1 }}
+                    >
+                      {savingPrizePool ? 'Saving…' : 'Save Prize Pool Settings'}
+                    </Button>
+                    {prizePoolMsg && (
+                      <Typography variant="caption" color={prizePoolMsg === 'Saved' ? 'success.main' : 'error.main'} sx={{ display: 'block', mt: 0.5 }}>
+                        {prizePoolMsg}
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Divider sx={{ my: 1.5 }} />
+
+                  {isAdmin && (
+                    <>
+                      <Button
+                        variant="contained"
+                        color="secondary"
+                        fullWidth
+                        onClick={refreshLeaderboard}
+                        disabled={refreshing}
+                        sx={{ mb: 1 }}
+                      >
+                        {refreshing ? 'Refreshing...' : 'Refresh Leaderboard'}
+                      </Button>
+                      {refreshMsg && (
+                        <Typography variant="caption" color="success.main" sx={{ display: 'block', mb: 1 }}>{refreshMsg}</Typography>
+                      )}
+                      <Button
+                        variant="outlined"
+                        color="secondary"
+                        fullWidth
+                        component={Link}
+                        href="/admin"
+                        sx={{ mb: 1.5 }}
+                      >
+                        Enter Results
+                      </Button>
+                      <Divider sx={{ my: 1.5 }} />
+                    </>
                   )}
+
                   <Button
                     variant="outlined"
-                    color="secondary"
+                    color="error"
                     fullWidth
-                    component={Link}
-                    href="/admin"
-                    sx={{ mt: 1 }}
+                    startIcon={<DeleteIcon />}
+                    onClick={handleDeleteLeague}
+                    disabled={deleting}
                   >
-                    Enter Results
+                    {deleting ? 'Deleting…' : 'Delete League'}
                   </Button>
                 </CardContent>
               </Card>
