@@ -13,12 +13,14 @@ import Alert from '@mui/material/Alert';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import TextField from '@mui/material/TextField';
+import LinearProgress from '@mui/material/LinearProgress';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import StarsIcon from '@mui/icons-material/Stars';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
+import HelpIcon from '@mui/icons-material/Help';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -56,9 +58,15 @@ interface LeagueDashboardProps {
   currentUserEmail: string;
   isAdmin: boolean;
   currentUserId: string;
+  progress: {
+    picks: number;
+    totalPicks: number;
+    bonus: number;
+    totalBonus: number;
+  };
 }
 
-export default function LeagueDashboard({ league, currentUserEmail, isAdmin, currentUserId }: LeagueDashboardProps) {
+export default function LeagueDashboard({ league, currentUserEmail, isAdmin, currentUserId, progress }: LeagueDashboardProps) {
   const router = useRouter();
   const currentMembership = league.members.find((m) => m.userId === currentUserId);
   const isCurrentUserVerified = currentMembership?.isVerified !== false;
@@ -315,50 +323,105 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
             {/* Quick actions */}
             <Card>
               <CardContent>
-                <Typography variant="h6" sx={{ fontWeight: 700 }} gutterBottom>
-                  Quick Actions
-                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    Quick Actions
+                  </Typography>
+                  <Button
+                    size="small"
+                    startIcon={<HelpIcon fontSize="small" />}
+                    onClick={() => router.push('/how-to-play')}
+                    sx={{ color: 'text.secondary', fontSize: '0.75rem' }}
+                  >
+                    How to Play
+                  </Button>
+                </Box>
                 <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    startIcon={<SportsSoccerIcon />}
-                    onClick={() => router.push(`/leagues/${league.slug}/bracket`)}
-                    disabled={!isCurrentUserVerified}
-                    title={!isCurrentUserVerified ? 'Verify your buy-in payment to submit picks' : undefined}
-                    sx={{ py: 1.5 }}
-                  >
-                    Submit Picks
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    startIcon={<LeaderboardIcon />}
-                    onClick={() => router.push(`/leagues/${league.slug}/leaderboard`)}
-                    sx={{ py: 1.5 }}
-                  >
-                    Leaderboard
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    startIcon={<StarsIcon />}
-                    color="secondary"
-                    onClick={() => router.push(`/leagues/${league.slug}/bonus`)}
-                    disabled={!isCurrentUserVerified}
-                    title={!isCurrentUserVerified ? 'Verify your buy-in payment to submit bonus picks' : undefined}
-                    sx={{ py: 1.5 }}
-                  >
-                    Bonus Picks
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    onClick={() => router.push(`/leagues/${league.slug}/fixtures`)}
-                    sx={{ py: 1.5 }}
-                  >
-                    View Fixtures
-                  </Button>
+                  {/* Submit Picks */}
+                  <Box>
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      startIcon={<SportsSoccerIcon />}
+                      onClick={() => router.push(`/leagues/${league.slug}/bracket`)}
+                      disabled={!isCurrentUserVerified}
+                      title={!isCurrentUserVerified ? 'Verify your buy-in payment to submit picks' : undefined}
+                      sx={{ py: 1.5 }}
+                    >
+                      Submit Picks
+                    </Button>
+                    {progress.totalPicks > 0 && (
+                      <Box sx={{ mt: 0.75 }}>
+                        <LinearProgress
+                          variant="determinate"
+                          value={(progress.picks / progress.totalPicks) * 100}
+                          sx={{ height: 4, borderRadius: 2 }}
+                          color={progress.picks === progress.totalPicks ? 'success' : 'primary'}
+                        />
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 0.25 }}>
+                          {progress.picks === progress.totalPicks
+                            ? '✓ All picks in'
+                            : `${progress.picks} / ${progress.totalPicks} picks`}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Leaderboard */}
+                  <Box>
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      startIcon={<LeaderboardIcon />}
+                      onClick={() => router.push(`/leagues/${league.slug}/leaderboard`)}
+                      sx={{ py: 1.5 }}
+                    >
+                      Leaderboard
+                    </Button>
+                  </Box>
+
+                  {/* Bonus Picks */}
+                  <Box>
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      startIcon={<StarsIcon />}
+                      color="secondary"
+                      onClick={() => router.push(`/leagues/${league.slug}/bonus`)}
+                      disabled={!isCurrentUserVerified}
+                      title={!isCurrentUserVerified ? 'Verify your buy-in payment to submit bonus picks' : undefined}
+                      sx={{ py: 1.5 }}
+                    >
+                      Bonus Picks
+                    </Button>
+                    {progress.totalBonus > 0 && (
+                      <Box sx={{ mt: 0.75 }}>
+                        <LinearProgress
+                          variant="determinate"
+                          value={(progress.bonus / progress.totalBonus) * 100}
+                          sx={{ height: 4, borderRadius: 2 }}
+                          color={progress.bonus === progress.totalBonus ? 'success' : 'secondary'}
+                        />
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 0.25 }}>
+                          {progress.bonus === progress.totalBonus
+                            ? '✓ All answered'
+                            : `${progress.bonus} / ${progress.totalBonus} answered`}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* View Fixtures */}
+                  <Box>
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      onClick={() => router.push(`/leagues/${league.slug}/fixtures`)}
+                      sx={{ py: 1.5 }}
+                    >
+                      View Fixtures
+                    </Button>
+                  </Box>
                 </Box>
               </CardContent>
             </Card>
