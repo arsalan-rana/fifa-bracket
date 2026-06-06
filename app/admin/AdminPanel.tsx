@@ -18,6 +18,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import NavBar from '../components/NavBar';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import EditIcon from '@mui/icons-material/Edit';
 import { useRouter } from 'next/navigation';
@@ -467,7 +468,9 @@ export default function AdminPanel({ existingResults }: AdminPanelProps) {
   const knockoutResultsCount = totalResults - groupResults;
 
   return (
-    <Box sx={{ background: '#0A0F1E', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ background: '#0A0F1E', minHeight: '100vh' }}>
+      <NavBar />
+      <Box sx={{ py: 4 }}>
       <Container maxWidth="lg">
         {/* Header */}
         <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
@@ -593,6 +596,7 @@ export default function AdminPanel({ existingResults }: AdminPanelProps) {
           {toastMsg}
         </Alert>
       </Snackbar>
+      </Box>
     </Box>
   );
 }
