@@ -468,7 +468,7 @@ export default function AdminPanel({ existingResults }: AdminPanelProps) {
   const knockoutResultsCount = totalResults - groupResults;
 
   return (
-    <Box sx={{ background: '#0A0F1E', minHeight: '100vh' }}>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
       <NavBar />
       <Box sx={{ py: 4 }}>
       <Container maxWidth="lg">

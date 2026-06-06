@@ -224,7 +224,7 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
   }
 
   return (
-    <Box sx={{ background: '#0A0F1E', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="lg">
         {/* League header */}
         <Box sx={{ mb: 4 }}>

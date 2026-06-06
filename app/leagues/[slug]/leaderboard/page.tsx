@@ -82,7 +82,7 @@ export default function LeaderboardPage({ params }: Props) {
   }
 
   return (
-    <Box sx={{ background: '#0A0F1E', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="lg">
         <Typography variant="h4" sx={{ fontWeight: 800 }} gutterBottom>
           🏆 Leaderboard

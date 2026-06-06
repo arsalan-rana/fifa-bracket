@@ -103,7 +103,7 @@ export default function BonusPage({ params }: Props) {
   const completedCount = Object.values(answers).filter((v) => v?.trim()).length;
 
   return (
-    <Box sx={{ background: '#0A0F1E', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="md">
         <Typography variant="h4" sx={{ fontWeight: 800 }} gutterBottom>
           <StarsIcon sx={{ mr: 1, verticalAlign: 'middle', color: 'secondary.main' }} />

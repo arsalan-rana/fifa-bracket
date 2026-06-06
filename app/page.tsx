@@ -139,7 +139,7 @@ export default function HomePage() {
   );
 
   return (
-    <Box className="wc-gradient min-h-screen">
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
       {/* Hero */}
       <Box
         sx={{

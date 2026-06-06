@@ -26,6 +26,9 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import { useThemeMode } from '../theme-context';
 
 interface NavBarProps {
   leagueSlug?: string;
@@ -53,6 +56,7 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { mode, toggle } = useThemeMode();
 
   const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
   const isAdminUser = !!adminEmail && session?.user?.email === adminEmail;
@@ -166,6 +170,11 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
 
           <Box sx={{ flexGrow: 1 }} />
 
+          {/* Theme toggle */}
+          <IconButton onClick={toggle} color="inherit" size="small" sx={{ ml: 1 }}>
+            {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+          </IconButton>
+
           {/* User avatar */}
           {session?.user && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -188,7 +197,7 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
 
       {/* Breadcrumbs */}
       {showBreadcrumbs && (
-        <Box sx={{ background: 'rgba(0,15,40,0.95)', borderBottom: '1px solid rgba(255,255,255,0.06)', px: 2, py: 0.75 }}>
+        <Box sx={{ background: 'rgba(0,20,60,0.97)', borderBottom: '1px solid rgba(255,255,255,0.06)', px: 2, py: 0.75 }}>
           <Breadcrumbs
             separator={<NavigateNextIcon fontSize="inherit" sx={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.3)' }} />}
             sx={{ '& .MuiBreadcrumbs-ol': { flexWrap: 'nowrap' } }}

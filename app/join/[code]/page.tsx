@@ -84,7 +84,7 @@ export default function JoinPage() {
   }
 
   return (
-    <Box sx={{ background: '#0A0F1E', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
       <Container maxWidth="sm">
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>

@@ -519,7 +519,7 @@ export default function BracketPage({ params }: Props) {
   const completedGroupMatches = GROUP_FIXTURES.filter((f) => predictions[f.matchNumber]).length;
 
   return (
-    <Box sx={{ background: '#0A0F1E', minHeight: '100vh', py: 4 }}>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="md">
         {/* Header */}
         <Box sx={{ mb: 4 }}>
