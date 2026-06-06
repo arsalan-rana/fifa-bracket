@@ -5,9 +5,20 @@ import Providers from './providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'FIFA World Cup 2026 | Bracket',
-  description: 'Predict every match of the FIFA World Cup 2026 with your friends and family.',
-  icons: { icon: '/favicon.ico' },
+  title: 'FIFA World Cup 2026 | Bracket Predictor',
+  description: 'Predict every match of the FIFA World Cup 2026 with your friends and family. Use chips, climb the leaderboard, win the prize pool.',
+  openGraph: {
+    title: 'FIFA World Cup 2026 | Bracket Predictor',
+    description: 'Predict every match with your friends and family. Use chips, climb the leaderboard, win the prize pool.',
+    siteName: 'WC26 Bracket',
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'FIFA World Cup 2026 | Bracket Predictor',
+    description: 'Predict every match with your friends and family.',
+  },
 };
 
 export const viewport: Viewport = {
