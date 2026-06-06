@@ -82,12 +82,13 @@ function MatchCard({
     <Card
       sx={{
         mb: 1.5,
-        background: selected ? 'rgba(0,61,165,0.12)' : '#111827',
+        bgcolor: selected ? 'rgba(0,61,165,0.08)' : 'background.paper',
         border: canPlaceChip
           ? '2px dashed rgba(201,167,58,0.7)'
           : selected
           ? '1px solid rgba(0,61,165,0.4)'
-          : '1px solid rgba(255,255,255,0.06)',
+          : '1px solid',
+        borderColor: canPlaceChip ? undefined : selected ? undefined : 'divider',
         position: 'relative',
         transition: 'border 0.2s',
       }}
@@ -131,7 +132,7 @@ function MatchCard({
                 fontSize: '0.8rem',
                 py: 0.75,
                 background: selected === opt.code ? undefined : 'transparent',
-                borderColor: selected === opt.code ? undefined : 'rgba(255,255,255,0.12)',
+                borderColor: selected === opt.code ? undefined : 'divider',
               }}
             >
               {opt.flag} {opt.label}
@@ -221,8 +222,9 @@ function ChipsPanel({ phase, chips, chipMode, onSelectChipMode, onRemoveChip }: 
       sx={{
         p: 2,
         mb: 3,
-        background: '#111827',
-        border: '1px solid rgba(255,255,255,0.08)',
+        bgcolor: 'background.paper',
+        border: '1px solid',
+        borderColor: 'divider',
         borderRadius: 2,
       }}
     >
@@ -246,16 +248,13 @@ function ChipsPanel({ phase, chips, chipMode, onSelectChipMode, onRemoveChip }: 
                 flex: '1 1 200px',
                 p: 1.5,
                 borderRadius: 2,
-                border: isActive
-                  ? '2px solid #C9A73A'
-                  : isUsed
-                  ? '1px solid rgba(255,255,255,0.12)'
-                  : '1px solid rgba(255,255,255,0.08)',
-                background: isActive
+                border: isActive ? '2px solid #C9A73A' : '1px solid',
+                borderColor: isActive ? undefined : 'divider',
+                bgcolor: isActive
                   ? 'rgba(201,167,58,0.1)'
                   : isUsed
-                  ? 'rgba(255,255,255,0.03)'
-                  : 'rgba(255,255,255,0.02)',
+                  ? 'action.hover'
+                  : 'transparent',
                 transition: 'all 0.2s',
               }}
             >
@@ -271,7 +270,7 @@ function ChipsPanel({ phase, chips, chipMode, onSelectChipMode, onRemoveChip }: 
                     sx={{
                       height: 16,
                       fontSize: '0.6rem',
-                      background: 'rgba(255,255,255,0.08)',
+                      bgcolor: 'action.hover',
                       color: 'text.secondary',
                     }}
                   />
@@ -622,8 +621,9 @@ export default function BracketPage({ params }: Props) {
               expanded={expanded === `group-${group}`}
               onChange={(_, isExpanded) => setExpanded(isExpanded ? `group-${group}` : '')}
               sx={{
-                background: '#111827',
-                border: '1px solid rgba(255,255,255,0.06)',
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'divider',
                 borderRadius: 2,
                 mb: 1.5,
                 '&:before': { display: 'none' },
@@ -640,7 +640,7 @@ export default function BracketPage({ params }: Props) {
                             key={t.code}
                             label={`${t.flag} ${t.code}`}
                             size="small"
-                            sx={{ fontSize: '0.7rem', height: 20, background: `${t.primaryColor}22`, color: '#fff' }}
+                            sx={{ fontSize: '0.7rem', height: 20, background: `${t.primaryColor}33`, color: 'text.primary' }}
                           />
                         ),
                     )}
