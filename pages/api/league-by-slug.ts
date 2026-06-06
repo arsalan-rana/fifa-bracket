@@ -15,7 +15,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const user = await db.user.findUnique({ where: { email: session.user.email } });
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  const league = await db.league.findUnique({ where: { slug } });
+  const league = await db.league.findUnique({
+    where: { slug },
+    include: { _count: { select: { members: true } } },
+  });
   if (!league) return res.status(404).json({ error: 'League not found' });
 
   const isMember = await db.leagueMember.findUnique({
@@ -31,5 +34,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     buyInAmount: league.buyInAmount ? Number(league.buyInAmount) : null,
     buyInCurrency: league.buyInCurrency,
     isVerified: isMember.isVerified,
+    memberCount: league._count.members,
   });
 }

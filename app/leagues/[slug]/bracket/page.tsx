@@ -17,6 +17,7 @@ import Alert from '@mui/material/Alert';
 import Snackbar from '@mui/material/Snackbar';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import Paper from '@mui/material/Paper';
+import LinearProgress from '@mui/material/LinearProgress';
 import {
   GROUPS,
   GROUP_FIXTURES,
@@ -56,6 +57,8 @@ function MatchCard({
   chipActive,
   chipMode,
   onApplyChip,
+  pickCounts,
+  totalMembers,
 }: {
   fixture: Fixture;
   selected?: string;
@@ -64,6 +67,8 @@ function MatchCard({
   chipActive?: string; // chip type applied to this match
   chipMode: ChipType | null;
   onApplyChip?: (matchNumber: number) => void;
+  pickCounts?: Record<string, number>;
+  totalMembers?: number;
 }) {
   const team1 = TEAMS[fixture.team1];
   const team2 = TEAMS[fixture.team2];
@@ -116,28 +121,46 @@ function MatchCard({
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {opts.map((opt) => (
-            <Button
-              key={opt.code}
-              variant={selected === opt.code ? 'contained' : 'outlined'}
-              color={selected === opt.code ? 'primary' : 'inherit'}
-              size="small"
-              onClick={() => !disabled && !chipMode && onSelect(opt.code)}
-              disabled={disabled || !!chipMode}
-              sx={{
-                flex: 1,
-                minWidth: 80,
-                fontWeight: selected === opt.code ? 700 : 400,
-                borderRadius: 2,
-                fontSize: '0.8rem',
-                py: 0.75,
-                background: selected === opt.code ? undefined : 'transparent',
-                borderColor: selected === opt.code ? undefined : 'divider',
-              }}
-            >
-              {opt.flag} {opt.label}
-            </Button>
-          ))}
+          {opts.map((opt) => {
+            const count = pickCounts?.[opt.code] ?? 0;
+            const pct = totalMembers && totalMembers > 0 && count > 0
+              ? Math.round((count / totalMembers) * 100)
+              : 0;
+            return (
+              <Box key={opt.code} sx={{ flex: 1, minWidth: 80, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Button
+                  variant={selected === opt.code ? 'contained' : 'outlined'}
+                  color={selected === opt.code ? 'primary' : 'inherit'}
+                  size="small"
+                  onClick={() => !disabled && !chipMode && onSelect(opt.code)}
+                  disabled={disabled || !!chipMode}
+                  sx={{
+                    width: '100%',
+                    fontWeight: selected === opt.code ? 700 : 400,
+                    borderRadius: 2,
+                    fontSize: '0.8rem',
+                    py: 0.75,
+                    background: selected === opt.code ? undefined : 'transparent',
+                    borderColor: selected === opt.code ? undefined : 'divider',
+                  }}
+                >
+                  {opt.flag} {opt.label}
+                </Button>
+                {pct > 0 && (
+                  <Box>
+                    <LinearProgress
+                      variant="determinate"
+                      value={pct}
+                      sx={{ height: 2, borderRadius: 1, mb: 0.25 }}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', lineHeight: 1 }}>
+                      {pct}% of league
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
         </Box>
 
         {/* Chip placement overlay */}
@@ -354,6 +377,8 @@ export default function BracketPage({ params }: Props) {
   const [isVerified, setIsVerified] = useState(true);
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
   const [expanded, setExpanded] = useState<string>('group-A');
+  const [leaguePicks, setLeaguePicks] = useState<Record<number, Record<string, number>>>({});
+  const [leagueMemberCount, setLeagueMemberCount] = useState(1);
 
   const currentPhase = getCurrentPhase();
   const phaseConfig = PHASES.find((p) => p.id === currentPhase)!;
@@ -377,6 +402,7 @@ export default function BracketPage({ params }: Props) {
         const leagueData = await leagueRes.json();
         setLeagueId(leagueData.id);
         setIsVerified(leagueData.isVerified !== false);
+        setLeagueMemberCount(leagueData.memberCount ?? 1);
 
         // Get existing predictions
         const predRes = await fetch(`/api/get-predictions?leagueId=${leagueData.id}`);
@@ -395,6 +421,13 @@ export default function BracketPage({ params }: Props) {
             };
           }
           setChips(chipMap);
+        }
+
+        // Fetch league-wide pick counts for this phase
+        const picksRes = await fetch(`/api/league-picks?leagueId=${leagueData.id}&phase=${currentPhase}`);
+        if (picksRes.ok) {
+          const picksData = await picksRes.json();
+          setLeaguePicks(picksData.picks ?? {});
         }
       } finally {
         setLoading(false);
@@ -470,6 +503,24 @@ export default function BracketPage({ params }: Props) {
       return next;
     });
     setChipMode(chipType);
+  }
+
+  function handleAutoPick() {
+    const phaseFixtures = GROUP_FIXTURES.filter((f) => f.phase === currentPhase);
+    let filled = 0;
+    const newPredictions: Predictions = { ...predictions };
+    for (const f of phaseFixtures) {
+      if (!newPredictions[f.matchNumber] && f.aiPrediction) {
+        newPredictions[f.matchNumber] = f.aiPrediction;
+        filled++;
+      }
+    }
+    if (filled > 0) {
+      setPredictions(newPredictions);
+      setSnack({ msg: `✨ Filled ${filled} pick${filled === 1 ? '' : 's'} with AI predictions`, severity: 'success' });
+    } else {
+      setSnack({ msg: 'No empty picks to fill', severity: 'error' });
+    }
   }
 
   async function handleSubmit(phase: Phase) {
@@ -552,6 +603,23 @@ export default function BracketPage({ params }: Props) {
               {completedGroupMatches}/{totalGroupMatches}
             </Typography>
           </Box>
+
+          {/* AI Autopick */}
+          {!isPastDeadline && isVerified && GROUP_FIXTURES.filter((f) => f.phase === currentPhase && !predictions[f.matchNumber] && f.aiPrediction).length > 0 && (
+            <Box sx={{ mt: 1.5 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleAutoPick}
+                sx={{ fontWeight: 700, borderRadius: 2, fontSize: '0.8rem' }}
+              >
+                ✨ Fill with AI Picks
+              </Button>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                Review and save when ready.
+              </Typography>
+            </Box>
+          )}
 
           {isPastDeadline && (
             <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
@@ -664,6 +732,8 @@ export default function BracketPage({ params }: Props) {
                     chipActive={getChipForMatch(fixture.matchNumber)}
                     chipMode={chipMode}
                     onApplyChip={handleApplyChip}
+                    pickCounts={leaguePicks[fixture.matchNumber]}
+                    totalMembers={leagueMemberCount}
                   />
                 ))}
               </AccordionDetails>
