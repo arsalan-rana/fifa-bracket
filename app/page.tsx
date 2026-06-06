@@ -27,6 +27,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import InputAdornment from '@mui/material/InputAdornment';
 import { useRouter } from 'next/navigation';
 import { TOURNAMENT } from '../data/fifa-2026';
+import NavBar from './components/NavBar';
 
 interface League {
   id: string;
@@ -140,6 +141,7 @@ export default function HomePage() {
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
+      <NavBar />
       {/* Hero */}
       <Box
         sx={{

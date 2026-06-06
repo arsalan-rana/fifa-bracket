@@ -115,10 +115,9 @@ function GroupResultForm({ fixture, existing, onSaved }: GroupResultFormProps) {
           px: 1,
           gap: 1.5,
           borderRadius: 1,
-          border: existing
-            ? '1px solid rgba(34,197,94,0.35)'
-            : '1px solid rgba(255,255,255,0.04)',
-          background: existing ? 'rgba(34,197,94,0.05)' : 'transparent',
+          border: '1px solid',
+          borderColor: existing ? 'rgba(34,197,94,0.35)' : 'divider',
+          bgcolor: existing ? 'rgba(34,197,94,0.05)' : 'transparent',
           mb: 0.5,
         }}
       >
@@ -306,10 +305,9 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
           px: 1,
           gap: 1.5,
           borderRadius: 1,
-          border: existing
-            ? '1px solid rgba(34,197,94,0.35)'
-            : '1px solid rgba(255,255,255,0.04)',
-          background: existing ? 'rgba(34,197,94,0.05)' : 'transparent',
+          border: '1px solid',
+          borderColor: existing ? 'rgba(34,197,94,0.35)' : 'divider',
+          bgcolor: existing ? 'rgba(34,197,94,0.05)' : 'transparent',
           mb: 0.5,
           flexWrap: 'wrap',
         }}
@@ -500,8 +498,9 @@ export default function AdminPanel({ existingResults }: AdminPanelProps) {
             <Accordion
               key={group}
               sx={{
-                background: '#111827',
-                border: '1px solid rgba(255,255,255,0.06)',
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'divider',
                 borderRadius: 2,
                 mb: 1,
                 '&:before': { display: 'none' },
@@ -516,7 +515,7 @@ export default function AdminPanel({ existingResults }: AdminPanelProps) {
                         key={t.code}
                         label={`${t.flag} ${t.code}`}
                         size="small"
-                        sx={{ fontSize: '0.65rem', height: 18, background: `${t.primaryColor}22`, color: '#fff' }}
+                        sx={{ fontSize: '0.65rem', height: 18, background: `${t.primaryColor}33`, color: 'text.primary' }}
                       />
                     ))}
                   </Box>
@@ -557,7 +556,8 @@ export default function AdminPanel({ existingResults }: AdminPanelProps) {
               key={phase}
               sx={{
                 mb: 2,
-                border: '1px solid rgba(255,255,255,0.06)',
+                border: '1px solid',
+                borderColor: 'divider',
               }}
             >
               <CardContent>
