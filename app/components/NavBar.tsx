@@ -14,7 +14,9 @@ import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
+import Breadcrumbs from '@mui/material/Breadcrumbs';
 import MenuIcon from '@mui/icons-material/Menu';
+import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HomeIcon from '@mui/icons-material/Home';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
@@ -38,6 +40,14 @@ const NAV_ITEMS = [
   { label: 'Leaderboard', icon: <LeaderboardIcon fontSize="small" />, href: '/leaderboard' },
 ];
 
+const PAGE_LABELS: Record<string, string> = {
+  bracket: 'Bracket',
+  fixtures: 'Fixtures',
+  bonus: 'Bonus',
+  leaderboard: 'Leaderboard',
+  admin: 'Admin',
+};
+
 export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
   const { data: session } = useSession();
   const router = useRouter();
@@ -48,6 +58,23 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
   const isAdminUser = !!adminEmail && session?.user?.email === adminEmail;
 
   const basePath = leagueSlug ? `/leagues/${leagueSlug}` : '';
+
+  // Build breadcrumb trail from current path
+  const safePath = pathname ?? '';
+  const segments = safePath.split('/').filter(Boolean);
+  const breadcrumbs: { label: string; href: string }[] = [{ label: 'Home', href: '/' }];
+  if (safePath.startsWith('/admin')) {
+    breadcrumbs.push({ label: 'Admin', href: '/admin' });
+  } else if (leagueSlug) {
+    breadcrumbs.push({ label: leagueName ?? leagueSlug, href: `/leagues/${leagueSlug}` });
+    const lastSegment = segments[segments.length - 1];
+    if (lastSegment && lastSegment !== leagueSlug && PAGE_LABELS[lastSegment]) {
+      breadcrumbs.push({ label: PAGE_LABELS[lastSegment], href: `${basePath}/${lastSegment}` });
+    }
+  } else if (safePath.startsWith('/join/')) {
+    breadcrumbs.push({ label: 'Join League', href: safePath });
+  }
+  const showBreadcrumbs = breadcrumbs.length > 1;
 
   const navItems = leagueSlug
     ? NAV_ITEMS.map((item) => ({ ...item, href: basePath + item.href }))
@@ -158,6 +185,31 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
           )}
         </Toolbar>
       </AppBar>
+
+      {/* Breadcrumbs */}
+      {showBreadcrumbs && (
+        <Box sx={{ background: 'rgba(0,15,40,0.95)', borderBottom: '1px solid rgba(255,255,255,0.06)', px: 2, py: 0.75 }}>
+          <Breadcrumbs
+            separator={<NavigateNextIcon fontSize="inherit" sx={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.3)' }} />}
+            sx={{ '& .MuiBreadcrumbs-ol': { flexWrap: 'nowrap' } }}
+          >
+            {breadcrumbs.map((crumb, idx) => {
+              const isLast = idx === breadcrumbs.length - 1;
+              return isLast ? (
+                <Typography key={crumb.href} variant="caption" sx={{ color: '#C9A73A', fontWeight: 700 }}>
+                  {crumb.label}
+                </Typography>
+              ) : (
+                <Link key={crumb.href} href={crumb.href} style={{ textDecoration: 'none' }}>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'rgba(255,255,255,0.85)' } }}>
+                    {crumb.label}
+                  </Typography>
+                </Link>
+              );
+            })}
+          </Breadcrumbs>
+        </Box>
+      )}
 
       {/* Mobile drawer */}
       <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
