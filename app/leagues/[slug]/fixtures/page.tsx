@@ -89,7 +89,7 @@ function PicksSection({ fixture, picksForMatch }: { fixture: Fixture; picksForMa
         px: 2,
         pt: 1.5,
         pb: 2,
-        bgcolor: 'rgba(255,255,255,0.025)',
+        bgcolor: 'action.hover',
         borderTop: '1px solid',
         borderColor: 'divider',
       }}
@@ -234,7 +234,7 @@ function CommentThread({
   }
 
   return (
-    <Box sx={{ pt: 1.5, pb: 1.5, px: 1.5, bgcolor: 'rgba(255,255,255,0.02)', borderTop: '1px solid', borderColor: 'divider' }}>
+    <Box sx={{ pt: 1.5, pb: 1.5, px: 1.5, bgcolor: 'action.hover', borderTop: '1px solid', borderColor: 'divider' }}>
       {comments.length === 0 && (
         <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mb: 1.5, textAlign: 'center' }}>
           No comments yet — be first to react
@@ -350,7 +350,7 @@ function MatchRow({
   }, [commentsOpen, picksOpen]);
 
   return (
-    <Box ref={rowRef} sx={{ borderBottom: isAnyOpen ? 'none' : '1px solid rgba(255,255,255,0.04)' }}>
+    <Box ref={rowRef} sx={{ borderBottom: isAnyOpen ? 'none' : '1px solid', borderColor: isAnyOpen ? 'transparent' : 'divider' }}>
       {/* Fixture row */}
       <Box
         sx={{
@@ -359,7 +359,7 @@ function MatchRow({
           py: 1,
           gap: 1,
           px: 0.5,
-          '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
+          '&:hover': { bgcolor: 'action.hover' },
         }}
       >
         <Typography variant="caption" color="text.secondary" sx={{ minWidth: 52, flexShrink: 0 }}>
@@ -578,8 +578,9 @@ export default function FixturesPage({ params }: Props) {
             <Accordion
               key={group}
               sx={{
-                background: '#111827',
-                border: '1px solid rgba(255,255,255,0.06)',
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'divider',
                 borderRadius: 2,
                 mb: 1,
                 '&:before': { display: 'none' },
