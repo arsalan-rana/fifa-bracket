@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
@@ -12,12 +13,14 @@ import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Snackbar from '@mui/material/Snackbar';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import Paper from '@mui/material/Paper';
 import LinearProgress from '@mui/material/LinearProgress';
+import TeamInfoDrawer from '../../../components/TeamInfoDrawer';
 import {
   GROUPS,
   GROUP_FIXTURES,
@@ -59,16 +62,18 @@ function MatchCard({
   onApplyChip,
   pickCounts,
   totalMembers,
+  onOpenTeamInfo,
 }: {
   fixture: Fixture;
   selected?: string;
   onSelect: (winner: string) => void;
   disabled: boolean;
-  chipActive?: string; // chip type applied to this match
+  chipActive?: string;
   chipMode: ChipType | null;
   onApplyChip?: (matchNumber: number) => void;
   pickCounts?: Record<string, number>;
   totalMembers?: number;
+  onOpenTeamInfo?: (code: string) => void;
 }) {
   const team1 = TEAMS[fixture.team1];
   const team2 = TEAMS[fixture.team2];
@@ -126,8 +131,9 @@ function MatchCard({
             const pct = totalMembers && totalMembers > 0 && count > 0
               ? Math.round((count / totalMembers) * 100)
               : 0;
+            const isRealTeam = opt.code !== 'DRAW' && !!TEAMS[opt.code];
             return (
-              <Box key={opt.code} sx={{ flex: 1, minWidth: 80, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Box key={opt.code} sx={{ flex: 1, minWidth: 80, display: 'flex', flexDirection: 'column', gap: 0 }}>
                 <Button
                   variant={selected === opt.code ? 'contained' : 'outlined'}
                   color={selected === opt.code ? 'primary' : 'inherit'}
@@ -146,8 +152,19 @@ function MatchCard({
                 >
                   {opt.flag} {opt.label}
                 </Button>
+                {isRealTeam && onOpenTeamInfo && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', my: 0.25 }}>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => { e.stopPropagation(); onOpenTeamInfo(opt.code); }}
+                      sx={{ p: 0.5, opacity: 0.35, '&:hover': { opacity: 0.8 } }}
+                    >
+                      <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Box>
+                )}
                 {pct > 0 && (
-                  <Box>
+                  <Box sx={{ mt: isRealTeam && onOpenTeamInfo ? 0 : 0.5 }}>
                     <LinearProgress
                       variant="determinate"
                       value={pct}
@@ -379,6 +396,7 @@ export default function BracketPage({ params }: Props) {
   const [expanded, setExpanded] = useState<string>('group-A');
   const [leaguePicks, setLeaguePicks] = useState<Record<number, Record<string, number>>>({});
   const [leagueMemberCount, setLeagueMemberCount] = useState(1);
+  const [teamDrawer, setTeamDrawer] = useState<string | null>(null);
 
   const currentPhase = getCurrentPhase();
   const phaseConfig = PHASES.find((p) => p.id === currentPhase)!;
@@ -734,6 +752,7 @@ export default function BracketPage({ params }: Props) {
                     onApplyChip={handleApplyChip}
                     pickCounts={leaguePicks[fixture.matchNumber]}
                     totalMembers={leagueMemberCount}
+                    onOpenTeamInfo={setTeamDrawer}
                   />
                 ))}
               </AccordionDetails>
@@ -759,6 +778,8 @@ export default function BracketPage({ params }: Props) {
           </Typography>
         </Box>
       </Container>
+
+      <TeamInfoDrawer teamCode={teamDrawer} onClose={() => setTeamDrawer(null)} />
 
       <Snackbar
         open={!!snack}

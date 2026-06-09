@@ -415,8 +415,8 @@ export const PHASES: PhaseConfig[] = [
     deadline: '2026-06-11T18:00:00Z',
     color: '#003DA5',
     icon: '🏟️',
-    scoringType: 'fixed',
-    fixedPoints: 5,
+    scoringType: 'pool',
+    poolPoints: 80,
     chipsAvailable: ['doubleUp', 'wildcard'],
   },
   {

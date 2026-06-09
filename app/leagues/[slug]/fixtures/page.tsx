@@ -1,23 +1,50 @@
 'use client';
 
-import { use } from 'react';
+import { use, useEffect, useState, useRef, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
+import Collapse from '@mui/material/Collapse';
 import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
+import Avatar from '@mui/material/Avatar';
+import TextField from '@mui/material/TextField';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ChatBubbleOutlinedIcon from '@mui/icons-material/ChatBubbleOutlined';
+import PeopleIcon from '@mui/icons-material/People';
+import SendIcon from '@mui/icons-material/Send';
 import EventNoteIcon from '@mui/icons-material/EventNote';
-import { GROUPS, GROUP_FIXTURES, KNOCKOUT_FIXTURES, TEAMS, PHASES } from '../../../../data/fifa-2026';
-import type { Phase } from '../../../../data/fifa-2026';
+import { useSession } from 'next-auth/react';
+import {
+  GROUPS,
+  GROUP_FIXTURES,
+  KNOCKOUT_FIXTURES,
+  TEAMS,
+  PHASES,
+  isPhasePastDeadline,
+} from '../../../../data/fifa-2026';
+import type { Phase, Fixture } from '../../../../data/fifa-2026';
 
 interface Props {
   params: Promise<{ slug: string }>;
 }
+
+interface Comment {
+  id: string;
+  matchNumber: number;
+  text: string;
+  createdAt: string;
+  user: { name: string | null; email: string; image: string | null };
+}
+
+type Picker = { name: string; image: string | null; email: string };
+type Picks = Record<number, Record<string, Picker[]>>;
 
 const PHASE_LABELS: Record<Phase, string> = {
   group: 'Group Stage',
@@ -28,8 +55,445 @@ const PHASE_LABELS: Record<Phase, string> = {
   final: 'Final',
 };
 
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+// ─── Picks Section ────────────────────────────────────────────────────────────
+
+function PicksSection({ fixture, picksForMatch }: { fixture: Fixture; picksForMatch: Record<string, Picker[]> }) {
+  const opts = [
+    { code: fixture.team1 },
+    ...(fixture.canDraw ? [{ code: 'DRAW' }] : []),
+    { code: fixture.team2 },
+  ];
+
+  // Build display list: all opts that appear in picks, plus any extra unexpected codes
+  const allCodes = new Set([
+    ...opts.map((o) => o.code),
+    ...Object.keys(picksForMatch),
+  ]);
+  const sorted = [...allCodes].sort((a, b) => (picksForMatch[b]?.length ?? 0) - (picksForMatch[a]?.length ?? 0));
+
+  const total = Object.values(picksForMatch).reduce((s, a) => s + a.length, 0);
+
+  return (
+    <Box
+      sx={{
+        px: 2,
+        pt: 1.5,
+        pb: 2,
+        bgcolor: 'rgba(255,255,255,0.025)',
+        borderTop: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
+      <Typography
+        variant="caption"
+        sx={{ display: 'block', fontWeight: 700, color: 'text.secondary', mb: 1.5, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: '0.65rem' }}
+      >
+        👥 League Picks · {total} submitted
+      </Typography>
+
+      {total === 0 ? (
+        <Typography variant="caption" color="text.disabled">No picks submitted for this match</Typography>
+      ) : (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {sorted.map((code) => {
+            const pickers = picksForMatch[code] ?? [];
+            const pct = total > 0 ? Math.round((pickers.length / total) * 100) : 0;
+            const team = TEAMS[code];
+            const isDraw = code === 'DRAW';
+            const label = isDraw ? '🤝 Draw' : `${team?.flag ?? ''} ${team?.name ?? code}`;
+            const barColor = isDraw ? '#6B7280' : (team?.primaryColor ?? '#3B82F6');
+
+            return (
+              <Box key={code}>
+                {/* Label + count row */}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{label}</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {pickers.length} pick{pickers.length !== 1 ? 's' : ''}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontWeight: 800,
+                        color: barColor,
+                        minWidth: 34,
+                        textAlign: 'right',
+                      }}
+                    >
+                      {pct}%
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {/* Bar */}
+                <Box
+                  sx={{
+                    height: 7,
+                    borderRadius: 4,
+                    bgcolor: 'action.hover',
+                    overflow: 'hidden',
+                    mb: 0.75,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      height: '100%',
+                      width: `${pct}%`,
+                      bgcolor: barColor,
+                      borderRadius: 4,
+                      transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                      opacity: pickers.length === 0 ? 0 : 1,
+                    }}
+                  />
+                </Box>
+
+                {/* Avatar strip */}
+                {pickers.length > 0 && (
+                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                    {pickers.map((p) => (
+                      <Tooltip key={p.email} title={p.name} placement="top" arrow>
+                        <Avatar
+                          src={p.image ?? undefined}
+                          sx={{
+                            width: 26,
+                            height: 26,
+                            fontSize: '0.65rem',
+                            border: `2px solid ${barColor}44`,
+                          }}
+                        >
+                          {!p.image && (p.name[0]?.toUpperCase() ?? '?')}
+                        </Avatar>
+                      </Tooltip>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ─── Comment Thread ───────────────────────────────────────────────────────────
+
+function CommentThread({
+  matchNumber,
+  leagueId,
+  comments,
+  onNewComment,
+}: {
+  matchNumber: number;
+  leagueId: string;
+  comments: Comment[];
+  onNewComment: (c: Comment) => void;
+}) {
+  const { data: session } = useSession();
+  const [text, setText] = useState('');
+  const [posting, setPosting] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [comments.length]);
+
+  async function submit() {
+    if (!text.trim() || posting || !leagueId) return;
+    setPosting(true);
+    try {
+      const res = await fetch('/api/match-comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId, matchNumber, text }),
+      });
+      if (res.ok) {
+        const { comment } = await res.json();
+        onNewComment(comment);
+        setText('');
+      }
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  return (
+    <Box sx={{ pt: 1.5, pb: 1, px: 1.5, bgcolor: 'rgba(255,255,255,0.02)', borderTop: '1px solid', borderColor: 'divider' }}>
+      {comments.length === 0 && (
+        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mb: 1.5, textAlign: 'center' }}>
+          No comments yet — be first to react
+        </Typography>
+      )}
+      {comments.map((c) => (
+        <Box key={c.id} sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
+          <Avatar src={c.user.image ?? undefined} sx={{ width: 24, height: 24, mt: 0.25, flexShrink: 0, fontSize: '0.6rem' }}>
+            {!c.user.image && (c.user.name?.[0] ?? c.user.email[0]).toUpperCase()}
+          </Avatar>
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
+              <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                {c.user.email === session?.user?.email ? 'You' : (c.user.name ?? c.user.email.split('@')[0])}
+              </Typography>
+              <Typography variant="caption" color="text.disabled">{timeAgo(c.createdAt)}</Typography>
+            </Box>
+            <Typography variant="body2" sx={{ lineHeight: 1.4 }}>{c.text}</Typography>
+          </Box>
+        </Box>
+      ))}
+      <div ref={bottomRef} />
+      {session && (
+        <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="Add a comment…"
+            value={text}
+            onChange={(e) => setText(e.target.value.slice(0, 280))}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
+            multiline
+            maxRows={3}
+            sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.85rem' } }}
+          />
+          <IconButton
+            onClick={submit}
+            disabled={!text.trim() || posting}
+            size="small"
+            sx={{ alignSelf: 'flex-end', color: 'primary.main' }}
+          >
+            <SendIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ─── Match Row ────────────────────────────────────────────────────────────────
+
+interface MatchRowProps {
+  fixture: Fixture;
+  label: React.ReactNode;
+  isPastDeadline: boolean;
+  commentsOpen: boolean;
+  picksOpen: boolean;
+  comments: Comment[];
+  picksForMatch: Record<string, Picker[]>;
+  leagueId: string;
+  onToggleComments: () => void;
+  onTogglePicks: () => void;
+  onNewComment: (c: Comment) => void;
+}
+
+function MatchRow({
+  fixture,
+  label,
+  isPastDeadline,
+  commentsOpen,
+  picksOpen,
+  comments,
+  picksForMatch,
+  leagueId,
+  onToggleComments,
+  onTogglePicks,
+  onNewComment,
+}: MatchRowProps) {
+  const totalPicks = Object.values(picksForMatch).reduce((s, a) => s + a.length, 0);
+  const isAnyOpen = commentsOpen || picksOpen;
+
+  return (
+    <Box sx={{ borderBottom: isAnyOpen ? 'none' : '1px solid rgba(255,255,255,0.04)' }}>
+      {/* Fixture row */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          py: 1,
+          gap: 1,
+          px: 0.5,
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
+        }}
+      >
+        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 52, flexShrink: 0 }}>
+          {new Date(fixture.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </Typography>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography variant="body2" noWrap>{label}</Typography>
+        </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, flexShrink: 0 }}>
+          {fixture.city}
+        </Typography>
+
+        {/* Picks toggle — only after deadline */}
+        {isPastDeadline && (
+          <Box
+            onClick={onTogglePicks}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.4,
+              cursor: 'pointer',
+              flexShrink: 0,
+              color: picksOpen ? 'secondary.main' : 'text.disabled',
+              px: 0.75,
+              py: 0.5,
+              borderRadius: 1,
+              '&:hover': { color: 'secondary.main', bgcolor: 'action.hover' },
+              transition: 'color 0.15s',
+            }}
+          >
+            <PeopleIcon sx={{ fontSize: 14 }} />
+            {totalPicks > 0 && (
+              <Typography variant="caption" sx={{ fontSize: '0.65rem', lineHeight: 1, fontWeight: 600 }}>
+                {totalPicks}
+              </Typography>
+            )}
+          </Box>
+        )}
+
+        {/* Comments toggle */}
+        <Box
+          onClick={onToggleComments}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.4,
+            cursor: 'pointer',
+            flexShrink: 0,
+            color: commentsOpen ? 'primary.main' : 'text.disabled',
+            px: 0.75,
+            py: 0.5,
+            borderRadius: 1,
+            '&:hover': { color: 'primary.main', bgcolor: 'action.hover' },
+            transition: 'color 0.15s',
+          }}
+        >
+          <ChatBubbleOutlinedIcon sx={{ fontSize: 14 }} />
+          {comments.length > 0 && (
+            <Typography variant="caption" sx={{ fontSize: '0.65rem', lineHeight: 1, fontWeight: 600 }}>
+              {comments.length}
+            </Typography>
+          )}
+        </Box>
+      </Box>
+
+      {/* Picks panel */}
+      {isPastDeadline && (
+        <Collapse in={picksOpen} unmountOnExit>
+          <PicksSection fixture={fixture} picksForMatch={picksForMatch} />
+        </Collapse>
+      )}
+
+      {/* Comment panel */}
+      <Collapse in={commentsOpen} unmountOnExit>
+        <CommentThread
+          matchNumber={fixture.matchNumber}
+          leagueId={leagueId}
+          comments={comments}
+          onNewComment={onNewComment}
+        />
+      </Collapse>
+    </Box>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function FixturesPage({ params }: Props) {
-  use(params); // consume params
+  const { slug } = use(params);
+  const [leagueId, setLeagueId] = useState('');
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [picks, setPicks] = useState<Picks>({});
+  const [openComments, setOpenComments] = useState<Set<number>>(new Set());
+  const [openPicks, setOpenPicks] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    async function load() {
+      const leagueRes = await fetch(`/api/league-by-slug?slug=${slug}`);
+      if (!leagueRes.ok) return;
+      const { id } = await leagueRes.json();
+      setLeagueId(id);
+
+      const [cRes, pRes] = await Promise.all([
+        fetch(`/api/match-comments?leagueId=${id}`),
+        fetch(`/api/match-picks?leagueId=${id}`),
+      ]);
+      if (cRes.ok) setComments((await cRes.json()).comments);
+      if (pRes.ok) setPicks((await pRes.json()).picks);
+    }
+    load();
+  }, [slug]);
+
+  const commentsFor = useCallback(
+    (matchNumber: number) => comments.filter((c) => c.matchNumber === matchNumber),
+    [comments],
+  );
+
+  const addComment = useCallback((c: Comment) => {
+    setComments((prev) => [...prev, c]);
+  }, []);
+
+  function toggleComments(n: number) {
+    setOpenComments((prev) => {
+      const next = new Set(prev);
+      next.has(n) ? next.delete(n) : next.add(n);
+      return next;
+    });
+  }
+
+  function togglePicks(n: number) {
+    setOpenPicks((prev) => {
+      const next = new Set(prev);
+      next.has(n) ? next.delete(n) : next.add(n);
+      return next;
+    });
+  }
+
+  const groupDeadlinePassed = isPhasePastDeadline('group');
+
+  function renderMatchRow(fixture: Fixture) {
+    const deadline = isPhasePastDeadline(fixture.phase);
+    return (
+      <MatchRow
+        key={fixture.matchNumber}
+        fixture={fixture}
+        label={
+          fixture.phase === 'group' ? (
+            <>
+              {TEAMS[fixture.team1]?.flag ?? ''}{' '}
+              <strong>{TEAMS[fixture.team1]?.name ?? fixture.team1}</strong>
+              {' vs '}
+              <strong>{TEAMS[fixture.team2]?.name ?? fixture.team2}</strong>{' '}
+              {TEAMS[fixture.team2]?.flag ?? ''}
+            </>
+          ) : (
+            <Typography component="span" variant="body2" color="text.secondary">
+              TBD vs TBD
+            </Typography>
+          )
+        }
+        isPastDeadline={deadline}
+        commentsOpen={openComments.has(fixture.matchNumber)}
+        picksOpen={openPicks.has(fixture.matchNumber)}
+        comments={commentsFor(fixture.matchNumber)}
+        picksForMatch={picks[fixture.matchNumber] ?? {}}
+        leagueId={leagueId}
+        onToggleComments={() => toggleComments(fixture.matchNumber)}
+        onTogglePicks={() => togglePicks(fixture.matchNumber)}
+        onNewComment={addComment}
+      />
+    );
+  }
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: 4 }}>
@@ -38,11 +502,14 @@ export default function FixturesPage({ params }: Props) {
           <EventNoteIcon sx={{ mr: 1, verticalAlign: 'middle', color: 'secondary.main' }} />
           Fixtures
         </Typography>
-        <Typography color="text.secondary" sx={{ mb: 3 }}>
+        <Typography color="text.secondary" sx={{ mb: 0.5 }}>
           All 104 matches · June 11 – July 19, 2026
         </Typography>
+        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mb: 3 }}>
+          Tap any match to see picks or leave a comment
+          {groupDeadlinePassed ? '' : ' · Picks reveal after each phase deadline'}
+        </Typography>
 
-        {/* Tournament summary */}
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 4 }}>
           {PHASES.map((phase) => (
             <Chip
@@ -62,6 +529,12 @@ export default function FixturesPage({ params }: Props) {
         {GROUPS.map((group) => {
           const fixtures = GROUP_FIXTURES.filter((f) => f.group === group);
           const teams = [...new Set(fixtures.flatMap((f) => [f.team1, f.team2]))].map((c) => TEAMS[c]);
+          const groupCommentCount = fixtures.reduce((sum, f) => sum + commentsFor(f.matchNumber).length, 0);
+          const groupPicksCount = fixtures.reduce(
+            (sum, f) =>
+              sum + Object.values(picks[f.matchNumber] ?? {}).reduce((s, a) => s + a.length, 0),
+            0,
+          );
 
           return (
             <Accordion
@@ -75,9 +548,9 @@ export default function FixturesPage({ params }: Props) {
               }}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%', pr: 1 }}>
                   <Typography sx={{ fontWeight: 800 }}>Group {group}</Typography>
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flex: 1 }}>
                     {teams.map((t) => t && (
                       <Chip
                         key={t.code}
@@ -87,44 +560,24 @@ export default function FixturesPage({ params }: Props) {
                       />
                     ))}
                   </Box>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexShrink: 0 }}>
+                    {groupDeadlinePassed && groupPicksCount > 0 && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'text.disabled' }}>
+                        <PeopleIcon sx={{ fontSize: 13 }} />
+                        <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>{groupPicksCount}</Typography>
+                      </Box>
+                    )}
+                    {groupCommentCount > 0 && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'text.disabled' }}>
+                        <ChatBubbleOutlinedIcon sx={{ fontSize: 13 }} />
+                        <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>{groupCommentCount}</Typography>
+                      </Box>
+                    )}
+                  </Box>
                 </Box>
               </AccordionSummary>
-              <AccordionDetails sx={{ pt: 0 }}>
-                {fixtures.map((f) => {
-                  const t1 = TEAMS[f.team1];
-                  const t2 = TEAMS[f.team2];
-                  return (
-                    <Box
-                      key={f.matchNumber}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        py: 1,
-                        borderBottom: '1px solid rgba(255,255,255,0.04)',
-                        gap: 2,
-                      }}
-                    >
-                      <Typography variant="caption" color="text.secondary" sx={{ minWidth: 60 }}>
-                        {new Date(f.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </Typography>
-                      <Typography variant="body2" sx={{ flex: 1 }}>
-                        {t1?.flag ?? ''} <strong>{t1?.name ?? f.team1}</strong>
-                        {' vs '}
-                        <strong>{t2?.name ?? f.team2}</strong> {t2?.flag ?? ''}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {f.city}
-                      </Typography>
-                      {f.aiPrediction && f.aiPrediction !== 'DRAW' && (
-                        <Chip
-                          label={`🤖 ${TEAMS[f.aiPrediction]?.code ?? f.aiPrediction}`}
-                          size="small"
-                          sx={{ fontSize: '0.65rem', height: 18, opacity: 0.6 }}
-                        />
-                      )}
-                    </Box>
-                  );
-                })}
+              <AccordionDetails sx={{ pt: 0, px: 1 }}>
+                {fixtures.map((f) => renderMatchRow(f))}
               </AccordionDetails>
             </Accordion>
           );
@@ -138,38 +591,36 @@ export default function FixturesPage({ params }: Props) {
         {(['round32', 'round16', 'quarter', 'semi', 'final'] as Phase[]).map((phase) => {
           const fixtures = KNOCKOUT_FIXTURES.filter((f) => f.phase === phase);
           const phaseConfig = PHASES.find((p) => p.id === phase)!;
+          const phaseDeadlinePassed = isPhasePastDeadline(phase);
+          const phasePicksCount = fixtures.reduce(
+            (sum, f) =>
+              sum + Object.values(picks[f.matchNumber] ?? {}).reduce((s, a) => s + a.length, 0),
+            0,
+          );
 
           return (
             <Card key={phase} sx={{ mb: 2 }}>
-              <CardContent>
-                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, color: phaseConfig.color }}>
-                  {phaseConfig.icon} {PHASE_LABELS[phase]}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                  Deadline: {new Date(phaseConfig.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </Typography>
-                {fixtures.map((f) => (
-                  <Box
-                    key={f.matchNumber}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      py: 0.75,
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      gap: 2,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" sx={{ minWidth: 60 }}>
-                      {new Date(f.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </Typography>
-                    <Typography variant="body2" sx={{ flex: 1 }} color="text.secondary">
-                      TBD vs TBD
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {f.city}
-                    </Typography>
+              <CardContent sx={{ pb: '12px !important' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: phaseConfig.color }}>
+                    {phaseConfig.icon} {PHASE_LABELS[phase]}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    {phaseDeadlinePassed && phasePicksCount > 0 && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'text.disabled' }}>
+                        <PeopleIcon sx={{ fontSize: 13 }} />
+                        <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>{phasePicksCount}</Typography>
+                      </Box>
+                    )}
                   </Box>
-                ))}
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  Deadline: {new Date(phaseConfig.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {phaseDeadlinePassed && (
+                    <Chip label="Picks visible" size="small" sx={{ ml: 1, height: 16, fontSize: '0.6rem', bgcolor: 'rgba(34,197,94,0.1)', color: 'success.main' }} />
+                  )}
+                </Typography>
+                {fixtures.map((f) => renderMatchRow(f))}
               </CardContent>
             </Card>
           );

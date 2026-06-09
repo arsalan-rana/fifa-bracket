@@ -288,14 +288,19 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
         {/* Prize pool unverified banner */}
         {league.isPrizePool && !isCurrentUserVerified && (
           <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
-            Your buy-in of ${Number(league.buyInAmount).toFixed(2)} {league.buyInCurrency} is pending.
-            E-transfer to{' '}
-            <strong>
-              {league.members.find((m) => m.userId === league.ownerId)?.user.name ??
-                league.members.find((m) => m.userId === league.ownerId)?.user.email ??
-                'the league owner'}
-            </strong>{' '}
-            and ask them to verify you to submit picks.
+            {(() => {
+              const owner = league.members.find((m) => m.userId === league.ownerId);
+              const ownerName = owner?.user.name ?? owner?.user.email ?? 'the league owner';
+              const ownerEmail = owner?.user.email;
+              return (
+                <>
+                  Your buy-in of ${Number(league.buyInAmount).toFixed(2)} {league.buyInCurrency} is pending.
+                  {' '}E-transfer to <strong>{ownerName}</strong>
+                  {ownerEmail && <> (<strong>{ownerEmail}</strong>)</>}
+                  {' '}and ask them to verify you to submit picks.
+                </>
+              );
+            })()}
           </Alert>
         )}
 
@@ -478,21 +483,23 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
             {/* Activity log */}
             {league.activityLogs.length > 0 && (
               <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }} gutterBottom>
+                <CardContent sx={{ pb: '12px !important' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 1.5 }}>
                     Recent Activity
                   </Typography>
-                  {league.activityLogs.map((log) => (
-                    <Box
-                      key={log.id}
-                      sx={{ py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', '&:last-child': { borderBottom: 'none' } }}
-                    >
-                      <Typography variant="body2">{parseActivity(log)}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {new Date(log.createdAt).toLocaleString()}
-                      </Typography>
-                    </Box>
-                  ))}
+                  <Box sx={{ maxHeight: 220, overflowY: 'auto' }}>
+                    {league.activityLogs.map((log) => (
+                      <Box
+                        key={log.id}
+                        sx={{ py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.06)', '&:last-child': { borderBottom: 'none' } }}
+                      >
+                        <Typography variant="body2">{parseActivity(log)}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(log.createdAt).toLocaleString()}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
                 </CardContent>
               </Card>
             )}

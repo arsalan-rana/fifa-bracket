@@ -28,12 +28,21 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
       const chips = userChips.map((c) => ({ matchNumber: c.matchNumber, chipType: c.chipType, phase: c.phase }));
 
       const groupPhase = PHASES.find((p) => p.id === 'group')!;
-      const groupPoints = calcGroupPoints(
-        userPredictions.map((p) => ({ matchNumber: p.matchNumber, predictedWinner: p.predictedWinner })),
-        results,
-        chips,
-        groupPhase.fixedPoints ?? 5
-      );
+      const groupPoints = groupPhase.scoringType === 'pool'
+        ? calcPoolPoints(
+            userPredictions.map((p) => ({ matchNumber: p.matchNumber, predictedWinner: p.predictedWinner })),
+            results,
+            allPredForPool,
+            chips,
+            'group',
+            groupPhase.poolPoints ?? 80
+          )
+        : calcGroupPoints(
+            userPredictions.map((p) => ({ matchNumber: p.matchNumber, predictedWinner: p.predictedWinner })),
+            results,
+            chips,
+            groupPhase.fixedPoints ?? 5
+          );
 
       const knockoutPhases: Phase[] = ['round32', 'round16', 'quarter', 'semi', 'final'];
       const knockoutPoints: Record<string, number> = {};

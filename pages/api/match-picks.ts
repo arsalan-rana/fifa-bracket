@@ -1,0 +1,48 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../../lib/auth';
+import { db } from '../../lib/db';
+import { ALL_FIXTURES, isPhasePastDeadline } from '../../data/fifa-2026';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user?.email) return res.status(401).json({ error: 'Unauthorized' });
+
+  const { leagueId } = req.query;
+  if (!leagueId || typeof leagueId !== 'string') return res.status(400).json({ error: 'Missing leagueId' });
+
+  const member = await db.leagueMember.findFirst({
+    where: { leagueId, user: { email: session.user.email } },
+  });
+  if (!member) return res.status(403).json({ error: 'Not a league member' });
+
+  const pastDeadlineMatchNumbers = ALL_FIXTURES
+    .filter((f) => isPhasePastDeadline(f.phase))
+    .map((f) => f.matchNumber);
+
+  if (pastDeadlineMatchNumbers.length === 0) {
+    return res.status(200).json({ picks: {} });
+  }
+
+  const predictions = await db.prediction.findMany({
+    where: { leagueId, matchNumber: { in: pastDeadlineMatchNumbers } },
+    include: { user: { select: { name: true, image: true, email: true } } },
+  });
+
+  type Picker = { name: string; image: string | null; email: string };
+  const picks: Record<number, Record<string, Picker[]>> = {};
+
+  for (const p of predictions) {
+    if (!picks[p.matchNumber]) picks[p.matchNumber] = {};
+    if (!picks[p.matchNumber][p.predictedWinner]) picks[p.matchNumber][p.predictedWinner] = [];
+    picks[p.matchNumber][p.predictedWinner].push({
+      name: p.user.name ?? p.user.email.split('@')[0],
+      image: p.user.image,
+      email: p.user.email,
+    });
+  }
+
+  return res.status(200).json({ picks });
+}

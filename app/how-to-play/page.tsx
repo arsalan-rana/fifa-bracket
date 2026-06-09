@@ -61,13 +61,10 @@ export default function HowToPlayPage() {
         {/* Scoring */}
         <Section title="Points System" icon="🏆">
           <Typography sx={{ mb: 2 }}>
-            <strong>Group Stage</strong> — flat <strong>5 points</strong> for every correct pick.
-            Simple and predictable.
-          </Typography>
-          <Typography sx={{ mb: 2 }}>
-            <strong>Knockout Rounds</strong> — each match has a <strong>point pool</strong> shared
-            equally among everyone in your league who got it right. Rarer picks are worth more —
-            if fewer people pick the winner, those that did earn a bigger share.
+            <strong>Every phase uses a point pool</strong> — each match has a pool shared among
+            everyone in your league who got it right. Rarer picks are worth more: if fewer people
+            pick the winner, those that did earn a bigger share. Picking an underdog that comes
+            through pays out far more than going with the crowd.
           </Typography>
 
           <Table size="small" sx={{ mb: 2 }}>
@@ -79,7 +76,7 @@ export default function HowToPlayPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {PHASES.filter((p) => p.id !== 'group').map((p) => (
+              {PHASES.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell>{p.icon} {p.name}</TableCell>
                   <TableCell align="right"><strong>{p.poolPoints} pts</strong></TableCell>
@@ -140,18 +137,6 @@ export default function HowToPlayPage() {
               </Typography>
             </Box>
 
-            <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                <Typography sx={{ fontSize: '1.4rem' }}>🏦</Typography>
-                <Typography sx={{ fontWeight: 700 }}>Banker</Typography>
-                <Chip label="QF / SF / Final · once per tournament" size="small" sx={{ bgcolor: 'rgba(201,167,58,0.15)', color: 'secondary.main', fontSize: '0.7rem' }} />
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                The big one. Apply to one match in the QF, SF, or Final stages and earn <strong>3× points</strong>
-                if correct. You only get one Banker for the entire tournament — use it wisely on a match
-                you&apos;re confident about.
-              </Typography>
-            </Box>
           </Box>
         </Section>
 

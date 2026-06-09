@@ -63,6 +63,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid match for this phase' });
   }
 
+  if (new Date(fixture.date) <= new Date()) {
+    return res.status(400).json({ error: 'This match has already started — chip cannot be applied' });
+  }
+
   try {
     const chip = await db.chipUsage.upsert({
       where: {
