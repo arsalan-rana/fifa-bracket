@@ -595,7 +595,7 @@ export default function FixturesPage({ params }: Props) {
                         key={t.code}
                         label={`${t.flag} ${t.code}`}
                         size="small"
-                        sx={{ fontSize: '0.65rem', height: 18, background: `${t.primaryColor}22`, color: '#fff' }}
+                        sx={{ fontSize: '0.65rem', height: 18, background: `${t.primaryColor}22`, color: 'text.primary' }}
                       />
                     ))}
                   </Box>
