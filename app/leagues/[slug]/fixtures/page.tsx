@@ -203,10 +203,15 @@ function CommentThread({
   const { data: session } = useSession();
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputWrapperRef = useRef<HTMLDivElement>(null);
+  const prevLengthRef = useRef(comments.length);
 
+  // Only scroll when a genuinely new comment arrives — not on mount
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (comments.length > prevLengthRef.current) {
+      inputWrapperRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    prevLengthRef.current = comments.length;
   }, [comments.length]);
 
   async function submit() {
@@ -229,7 +234,7 @@ function CommentThread({
   }
 
   return (
-    <Box sx={{ pt: 1.5, pb: 1, px: 1.5, bgcolor: 'rgba(255,255,255,0.02)', borderTop: '1px solid', borderColor: 'divider' }}>
+    <Box sx={{ pt: 1.5, pb: 1.5, px: 1.5, bgcolor: 'rgba(255,255,255,0.02)', borderTop: '1px solid', borderColor: 'divider' }}>
       {comments.length === 0 && (
         <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mb: 1.5, textAlign: 'center' }}>
           No comments yet — be first to react
@@ -237,7 +242,7 @@ function CommentThread({
       )}
       {comments.map((c) => (
         <Box key={c.id} sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
-          <Avatar src={c.user.image ?? undefined} sx={{ width: 24, height: 24, mt: 0.25, flexShrink: 0, fontSize: '0.6rem' }}>
+          <Avatar src={c.user.image ?? undefined} sx={{ width: 28, height: 28, mt: 0.25, flexShrink: 0, fontSize: '0.65rem' }}>
             {!c.user.image && (c.user.name?.[0] ?? c.user.email[0]).toUpperCase()}
           </Avatar>
           <Box>
@@ -247,13 +252,16 @@ function CommentThread({
               </Typography>
               <Typography variant="caption" color="text.disabled">{timeAgo(c.createdAt)}</Typography>
             </Box>
-            <Typography variant="body2" sx={{ lineHeight: 1.4 }}>{c.text}</Typography>
+            <Typography variant="body2" sx={{ lineHeight: 1.5 }}>{c.text}</Typography>
           </Box>
         </Box>
       ))}
-      <div ref={bottomRef} />
+
       {session && (
-        <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+        <Box
+          ref={inputWrapperRef}
+          sx={{ display: 'flex', gap: 1, mt: comments.length > 0 ? 1.5 : 0, alignItems: 'flex-end' }}
+        >
           <TextField
             size="small"
             fullWidth
@@ -261,17 +269,37 @@ function CommentThread({
             value={text}
             onChange={(e) => setText(e.target.value.slice(0, 280))}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
+            onFocus={() => {
+              // Wait for mobile keyboard to finish sliding up before scrolling
+              setTimeout(() => {
+                inputWrapperRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              }, 350);
+            }}
             multiline
-            maxRows={3}
-            sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.85rem' } }}
+            minRows={1}
+            maxRows={4}
+            slotProps={{
+              htmlInput: {
+                enterKeyHint: 'send',
+                autoCapitalize: 'sentences',
+              },
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': { fontSize: '0.9rem', borderRadius: 3 },
+            }}
           />
           <IconButton
             onClick={submit}
             disabled={!text.trim() || posting}
-            size="small"
-            sx={{ alignSelf: 'flex-end', color: 'primary.main' }}
+            sx={{
+              alignSelf: 'flex-end',
+              color: 'primary.main',
+              width: 40,
+              height: 40,
+              flexShrink: 0,
+            }}
           >
-            <SendIcon fontSize="small" />
+            <SendIcon />
           </IconButton>
         </Box>
       )}
@@ -310,9 +338,19 @@ function MatchRow({
 }: MatchRowProps) {
   const totalPicks = Object.values(picksForMatch).reduce((s, a) => s + a.length, 0);
   const isAnyOpen = commentsOpen || picksOpen;
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // When a panel opens, wait for Collapse animation then scroll the row to a sensible position
+  useEffect(() => {
+    if (commentsOpen || picksOpen) {
+      setTimeout(() => {
+        rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 280);
+    }
+  }, [commentsOpen, picksOpen]);
 
   return (
-    <Box sx={{ borderBottom: isAnyOpen ? 'none' : '1px solid rgba(255,255,255,0.04)' }}>
+    <Box ref={rowRef} sx={{ borderBottom: isAnyOpen ? 'none' : '1px solid rgba(255,255,255,0.04)' }}>
       {/* Fixture row */}
       <Box
         sx={{
