@@ -315,7 +315,7 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     phase: 'group',
     type: 'text',
     points: 40,
-    aiPrediction: 'Kylian Mbappé (France)',
+    aiPrediction: 'Erling Haaland (Norway)',
   },
   {
     id: 'golden-ball',
@@ -323,7 +323,7 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     phase: 'group',
     type: 'text',
     points: 30,
-    aiPrediction: 'Lionel Messi (Argentina)',
+    aiPrediction: 'Vinicius Jr (Brazil)',
   },
   {
     id: 'golden-glove',
@@ -331,7 +331,7 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     phase: 'group',
     type: 'text',
     points: 30,
-    aiPrediction: 'Thibaut Courtois (Belgium)',
+    aiPrediction: 'Emiliano Martínez (Argentina)',
   },
   {
     id: 'world-cup-winner',
@@ -339,7 +339,7 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     phase: 'group',
     type: 'team',
     points: 25,
-    aiPrediction: 'FRA',
+    aiPrediction: 'ESP',
   },
   {
     id: 'total-goals',
@@ -347,7 +347,7 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     phase: 'group',
     type: 'number',
     points: 40,
-    aiPrediction: '168',
+    aiPrediction: '163',
   },
   {
     id: 'host-usa-knockouts',
@@ -374,7 +374,7 @@ export const BONUS_QUESTIONS: BonusQuestion[] = [
     type: 'text',
     options: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'],
     points: 20,
-    aiPrediction: 'C',
+    aiPrediction: 'D',
   },
   {
     id: 'host-canada-knockouts',
