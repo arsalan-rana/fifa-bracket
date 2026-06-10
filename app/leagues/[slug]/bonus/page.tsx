@@ -24,6 +24,7 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import LockClockIcon from '@mui/icons-material/LockClock';
+import { useSession } from 'next-auth/react';
 import { BONUS_QUESTIONS, TEAMS, isPhasePastDeadline } from '../../../../data/fifa-2026';
 
 interface Props {
@@ -208,8 +209,12 @@ export default function BonusPage({ params }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
   const [tab, setTab] = useState(0);
+  const { data: session } = useSession();
 
   const isPastDeadline = isPhasePastDeadline('group');
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const isAdminUser = !!adminEmail && session?.user?.email === adminEmail;
+  const canViewEveryone = isPastDeadline || isAdminUser;
 
   useEffect(() => {
     async function load() {
@@ -234,10 +239,10 @@ export default function BonusPage({ params }: Props) {
     load();
   }, [slug]);
 
-  // Jump to everyone's tab after deadline
+  // Auto-switch to everyone's tab once the deadline passes for regular members
   useEffect(() => {
-    if (isPastDeadline && tab === 0) setTab(1);
-  }, [isPastDeadline]);
+    if (isPastDeadline && !isAdminUser && tab === 0) setTab(1);
+  }, [isPastDeadline, isAdminUser]);
 
   async function handleSubmit() {
     if (!leagueId) return;
@@ -299,8 +304,8 @@ export default function BonusPage({ params }: Props) {
           <Tab label="My Picks" />
           <Tab
             label="Everyone's Picks"
-            disabled={!isPastDeadline}
-            title={!isPastDeadline ? 'Revealed after the group stage starts' : undefined}
+            disabled={!canViewEveryone}
+            title={!canViewEveryone ? 'Revealed after the group stage starts' : undefined}
           />
         </Tabs>
 
