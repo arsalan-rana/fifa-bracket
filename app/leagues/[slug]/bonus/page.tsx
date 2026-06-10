@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useState, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -16,13 +16,187 @@ import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import Avatar from '@mui/material/Avatar';
 import StarsIcon from '@mui/icons-material/Stars';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import LockClockIcon from '@mui/icons-material/LockClock';
 import { BONUS_QUESTIONS, TEAMS, isPhasePastDeadline } from '../../../../data/fifa-2026';
 
 interface Props {
   params: Promise<{ slug: string }>;
 }
+
+interface BonusMember { userId: string; name: string; image: string | null }
+interface BonusPrediction { userId: string; questionId: string; answer: string }
+interface OfficialAnswer { questionId: string; answer: string }
+
+// ─── Everyone's picks tab ─────────────────────────────────────────────────────
+
+function EveryonesPicks({ leagueId }: { leagueId: string }) {
+  const [members, setMembers] = useState<BonusMember[]>([]);
+  const [predictions, setPredictions] = useState<BonusPrediction[]>([]);
+  const [officialAnswers, setOfficialAnswers] = useState<OfficialAnswer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!leagueId) return;
+    fetch(`/api/league-bonus-picks?leagueId=${leagueId}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const d = await r.json();
+          throw new Error(d.error ?? 'Failed to load');
+        }
+        return r.json();
+      })
+      .then((d) => {
+        setMembers(d.members);
+        setPredictions(d.predictions);
+        setOfficialAnswers(d.officialAnswers);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [leagueId]);
+
+  if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress color="secondary" /></Box>;
+  if (error) return <Alert severity="error">{error}</Alert>;
+
+  const officialMap = new Map(officialAnswers.map((a) => [a.questionId, a.answer]));
+  const memberMap = new Map(members.map((m) => [m.userId, m]));
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {BONUS_QUESTIONS.map((q) => {
+        const official = officialMap.get(q.id);
+        const qPreds = predictions.filter((p) => p.questionId === q.id);
+
+        // For number type, find closest answer(s)
+        let closestUserIds: Set<string> | null = null;
+        if (q.type === 'number' && official) {
+          const correctVal = parseFloat(official);
+          if (!isNaN(correctVal)) {
+            let minDist = Infinity;
+            for (const p of qPreds) {
+              const v = parseFloat(p.answer);
+              if (!isNaN(v)) minDist = Math.min(minDist, Math.abs(v - correctVal));
+            }
+            closestUserIds = new Set(
+              qPreds
+                .filter((p) => !isNaN(parseFloat(p.answer)) && Math.abs(parseFloat(p.answer) - correctVal) === minDist)
+                .map((p) => p.userId)
+            );
+          }
+        }
+
+        return (
+          <Card key={q.id}>
+            <CardContent>
+              {/* Question header */}
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.5, gap: 1 }}>
+                <Typography sx={{ fontWeight: 700, flex: 1 }}>{q.question}</Typography>
+                <Chip
+                  label={`${q.points} pts`}
+                  size="small"
+                  sx={{ background: 'rgba(201,167,58,0.15)', color: '#C9A73A', fontWeight: 700, flexShrink: 0 }}
+                />
+              </Box>
+
+              {/* Official answer badge */}
+              {official ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 1.5, p: 1, borderRadius: 1, bgcolor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
+                  <CheckCircleIcon sx={{ fontSize: '1rem', color: '#22c55e' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#22c55e' }}>
+                    Official:{' '}
+                    {q.type === 'team' && TEAMS[official]
+                      ? `${TEAMS[official].flag} ${TEAMS[official].name}`
+                      : official}
+                  </Typography>
+                  {q.type === 'number' && <Typography variant="caption" color="text.secondary">— closest wins</Typography>}
+                </Box>
+              ) : (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 1.5, opacity: 0.5 }}>
+                  <LockClockIcon sx={{ fontSize: '0.85rem' }} />
+                  <Typography variant="caption" color="text.secondary">Official answer not set yet</Typography>
+                </Box>
+              )}
+
+              {/* Member answers */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
+                {members.map((member) => {
+                  const pred = qPreds.find((p) => p.userId === member.userId);
+                  const answer = pred?.answer;
+                  const displayAnswer = answer && q.type === 'team' && TEAMS[answer]
+                    ? `${TEAMS[answer].flag} ${TEAMS[answer].name}`
+                    : answer;
+
+                  let isCorrect: boolean | null = null;
+                  if (official && answer) {
+                    if (q.type === 'number') {
+                      isCorrect = closestUserIds?.has(member.userId) ?? false;
+                    } else {
+                      isCorrect = answer.trim().toLowerCase() === official.trim().toLowerCase();
+                    }
+                  }
+
+                  const distFromOfficial = q.type === 'number' && official && answer
+                    ? Math.abs(parseFloat(answer) - parseFloat(official))
+                    : null;
+
+                  return (
+                    <Box
+                      key={member.userId}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        p: 0.8,
+                        borderRadius: 1,
+                        bgcolor: isCorrect === true ? 'rgba(34,197,94,0.07)' : isCorrect === false ? 'rgba(239,68,68,0.04)' : 'rgba(255,255,255,0.03)',
+                        border: '1px solid',
+                        borderColor: isCorrect === true ? 'rgba(34,197,94,0.2)' : isCorrect === false ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.07)',
+                      }}
+                    >
+                      <Avatar src={member.image ?? undefined} sx={{ width: 24, height: 24, fontSize: '0.65rem' }}>
+                        {member.name[0]}
+                      </Avatar>
+                      <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 80, flex: 1 }}>
+                        {member.name.split(' ')[0]}
+                      </Typography>
+                      {answer ? (
+                        <>
+                          <Typography variant="body2" sx={{ color: 'text.primary' }}>
+                            {displayAnswer}
+                          </Typography>
+                          {distFromOfficial !== null && !isNaN(distFromOfficial) && (
+                            <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+                              (off by {distFromOfficial})
+                            </Typography>
+                          )}
+                          {isCorrect === true && <CheckCircleIcon sx={{ fontSize: '1rem', color: '#22c55e' }} />}
+                          {isCorrect === false && <CancelIcon sx={{ fontSize: '1rem', color: 'rgba(239,68,68,0.6)' }} />}
+                        </>
+                      ) : (
+                        <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
+                          No answer
+                        </Typography>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </Box>
+  );
+}
+
+// ─── Main bonus page ──────────────────────────────────────────────────────────
 
 export default function BonusPage({ params }: Props) {
   const { slug } = use(params);
@@ -33,6 +207,7 @@ export default function BonusPage({ params }: Props) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
+  const [tab, setTab] = useState(0);
 
   const isPastDeadline = isPhasePastDeadline('group');
 
@@ -58,6 +233,11 @@ export default function BonusPage({ params }: Props) {
     }
     load();
   }, [slug]);
+
+  // Jump to everyone's tab after deadline
+  useEffect(() => {
+    if (isPastDeadline && tab === 0) setTab(1);
+  }, [isPastDeadline]);
 
   async function handleSubmit() {
     if (!leagueId) return;
@@ -105,123 +285,153 @@ export default function BonusPage({ params }: Props) {
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="md">
-        <Typography variant="h4" sx={{ fontWeight: 800 }} gutterBottom>
+        <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>
           <StarsIcon sx={{ mr: 1, verticalAlign: 'middle', color: 'secondary.main' }} />
           Bonus Questions
         </Typography>
-        <Typography color="text.secondary" sx={{ mb: 3 }}>
-          Answer all questions before the Group Stage deadline for bonus points. Points vary by question difficulty.
-        </Typography>
 
-        {isPastDeadline && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            Deadline has passed — bonus answers are locked and can no longer be changed.
-          </Alert>
+        {/* Tabs */}
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          sx={{ mb: 3, borderBottom: '1px solid', borderColor: 'divider' }}
+        >
+          <Tab label="My Picks" />
+          <Tab
+            label="Everyone's Picks"
+            disabled={!isPastDeadline}
+            title={!isPastDeadline ? 'Revealed after the group stage starts' : undefined}
+          />
+        </Tabs>
+
+        {/* ── Tab 0: My Picks ── */}
+        {tab === 0 && (
+          <>
+            <Typography color="text.secondary" sx={{ mb: 3 }}>
+              Answer all questions before the Group Stage deadline for bonus points. Points vary by question difficulty.
+            </Typography>
+
+            {isPastDeadline && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                Deadline has passed — bonus answers are locked and can no longer be changed.
+              </Alert>
+            )}
+
+            {!isVerified && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                Your buy-in payment is pending verification. You cannot submit bonus answers until the league owner verifies your payment.
+              </Alert>
+            )}
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {BONUS_QUESTIONS.map((q) => (
+                <Card key={q.id}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Typography sx={{ fontWeight: 700, flex: 1, mr: 2 }}>
+                        {q.question}
+                      </Typography>
+                      <Chip
+                        label={`${q.points} pts`}
+                        size="small"
+                        sx={{ background: 'rgba(201,167,58,0.15)', color: '#C9A73A', fontWeight: 700 }}
+                      />
+                    </Box>
+
+                    {q.aiPrediction && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, opacity: 0.7 }}>
+                        <SmartToyIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                        <Typography variant="caption" color="text.secondary">
+                          AI prediction:{' '}
+                          <strong>
+                            {q.type === 'team' && TEAMS[q.aiPrediction]
+                              ? `${TEAMS[q.aiPrediction].flag} ${TEAMS[q.aiPrediction].name}`
+                              : q.aiPrediction}
+                          </strong>
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {q.type === 'team' ? (
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Select team</InputLabel>
+                        <Select
+                          value={answers[q.id] ?? ''}
+                          label="Select team"
+                          onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                          disabled={isPastDeadline}
+                        >
+                          {Object.values(TEAMS).map((t) => (
+                            <MenuItem key={t.code} value={t.code}>
+                              {t.flag} {t.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    ) : q.options ? (
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Select answer</InputLabel>
+                        <Select
+                          value={answers[q.id] ?? ''}
+                          label="Select answer"
+                          onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                          disabled={isPastDeadline}
+                        >
+                          {q.options.map((opt) => (
+                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    ) : (
+                      <TextField
+                        fullWidth
+                        size="small"
+                        value={answers[q.id] ?? ''}
+                        onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                        placeholder={q.type === 'number' ? 'Enter a number' : 'Your answer'}
+                        type={q.type === 'number' ? 'number' : 'text'}
+                        disabled={isPastDeadline}
+                      />
+                    )}
+
+                    {answers[q.id] && (
+                      <Chip
+                        label="✓ Answered"
+                        size="small"
+                        color="success"
+                        sx={{ mt: 1, height: 20, fontSize: '0.7rem' }}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </Box>
+
+            <Box sx={{ mt: 3, textAlign: 'center' }}>
+              <Button
+                variant="contained"
+                size="large"
+                onClick={handleSubmit}
+                disabled={submitting || completedCount === 0 || !isVerified || isPastDeadline}
+                title={isPastDeadline ? 'Deadline has passed' : !isVerified ? 'Your buy-in payment is pending verification' : undefined}
+                sx={{ px: 6, py: 1.5 }}
+              >
+                {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : '⭐ '}
+                Save {completedCount} Bonus {completedCount === 1 ? 'Answer' : 'Answers'}
+              </Button>
+            </Box>
+          </>
         )}
 
-        {!isVerified && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            Your buy-in payment is pending verification. You cannot submit bonus answers until the league owner verifies your payment.
-          </Alert>
+        {/* ── Tab 1: Everyone's Picks ── */}
+        {tab === 1 && leagueId && (
+          <>
+            <Typography color="text.secondary" sx={{ mb: 3 }}>
+              Everyone's bonus answers for this league. Correct answers highlighted in green once results are official.
+            </Typography>
+            <EveryonesPicks leagueId={leagueId} />
+          </>
         )}
-
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {BONUS_QUESTIONS.map((q) => (
-            <Card key={q.id}>
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Typography sx={{ fontWeight: 700, flex: 1, mr: 2 }}>
-                    {q.question}
-                  </Typography>
-                  <Chip
-                    label={`${q.points} pts`}
-                    size="small"
-                    sx={{ background: 'rgba(201,167,58,0.15)', color: '#C9A73A', fontWeight: 700 }}
-                  />
-                </Box>
-
-                {q.aiPrediction && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, opacity: 0.7 }}>
-                    <SmartToyIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                    <Typography variant="caption" color="text.secondary">
-                      AI prediction:{' '}
-                      <strong>
-                        {q.type === 'team' && TEAMS[q.aiPrediction]
-                          ? `${TEAMS[q.aiPrediction].flag} ${TEAMS[q.aiPrediction].name}`
-                          : q.aiPrediction}
-                      </strong>
-                    </Typography>
-                  </Box>
-                )}
-
-                {q.type === 'team' ? (
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Select team</InputLabel>
-                    <Select
-                      value={answers[q.id] ?? ''}
-                      label="Select team"
-                      onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                      disabled={isPastDeadline}
-                    >
-                      {Object.values(TEAMS).map((t) => (
-                        <MenuItem key={t.code} value={t.code}>
-                          {t.flag} {t.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                ) : q.options ? (
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Select answer</InputLabel>
-                    <Select
-                      value={answers[q.id] ?? ''}
-                      label="Select answer"
-                      onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                      disabled={isPastDeadline}
-                    >
-                      {q.options.map((opt) => (
-                        <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                ) : (
-                  <TextField
-                    fullWidth
-                    size="small"
-                    value={answers[q.id] ?? ''}
-                    onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                    placeholder={q.type === 'number' ? 'Enter a number' : 'Your answer'}
-                    type={q.type === 'number' ? 'number' : 'text'}
-                    disabled={isPastDeadline}
-                  />
-                )}
-
-                {answers[q.id] && (
-                  <Chip
-                    label="✓ Answered"
-                    size="small"
-                    color="success"
-                    sx={{ mt: 1, height: 20, fontSize: '0.7rem' }}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </Box>
-
-        <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Button
-            variant="contained"
-            size="large"
-            onClick={handleSubmit}
-            disabled={submitting || completedCount === 0 || !isVerified || isPastDeadline}
-            title={isPastDeadline ? 'Deadline has passed' : !isVerified ? 'Your buy-in payment is pending verification' : undefined}
-            sx={{ px: 6, py: 1.5 }}
-          >
-            {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : '⭐ '}
-            Save {completedCount} Bonus {completedCount === 1 ? 'Answer' : 'Answers'}
-          </Button>
-        </Box>
       </Container>
 
       <Snackbar

@@ -22,6 +22,8 @@ import NavBar from '../components/NavBar';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import EditIcon from '@mui/icons-material/Edit';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import PeopleIcon from '@mui/icons-material/People';
 import {
   GROUPS,
   GROUP_FIXTURES,
@@ -515,7 +517,7 @@ export default function AdminPanel({ existingResults, existingBonusAnswers }: Ad
         {/* Header */}
         <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
           <AdminPanelSettingsIcon sx={{ fontSize: '2.5rem', color: 'secondary.main' }} />
-          <Box>
+          <Box sx={{ flex: 1 }}>
             <Typography variant="h4" sx={{ fontWeight: 800 }}>
               Admin — Enter Results
             </Typography>
@@ -524,6 +526,15 @@ export default function AdminPanel({ existingResults, existingBonusAnswers }: Ad
               {' '}({groupResults} group · {knockoutResultsCount} knockout)
             </Typography>
           </Box>
+          <Button
+            variant="outlined"
+            startIcon={<PeopleIcon />}
+            component={Link}
+            href="/admin/picks"
+            sx={{ borderRadius: 2, whiteSpace: 'nowrap' }}
+          >
+            View All Picks
+          </Button>
         </Box>
 
         {/* ── Section 1: Group Stage ── */}
