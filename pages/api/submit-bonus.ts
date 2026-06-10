@@ -31,6 +31,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: 'Payment not verified. Please e-transfer the buy-in to the league owner.' });
   }
 
+  if (isPhasePastDeadline('group')) {
+    return res.status(400).json({ error: 'Bonus predictions are locked — the group stage has already started' });
+  }
+
   const validIds = new Set(BONUS_QUESTIONS.map((q) => q.id));
 
   for (const ans of answers) {

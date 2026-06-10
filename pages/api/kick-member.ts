@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions, isAdmin } from '../../lib/auth';
 import { db } from '../../lib/db';
+import { refreshLeagueLeaderboard } from '../../lib/leaderboard';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -56,7 +57,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       where: { leagueId_userId: { leagueId, userId: targetUserId } },
     });
 
-    // Log the kick
     await db.activityLog.create({
       data: {
         leagueId,
@@ -65,6 +65,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         details: JSON.stringify({ kickedUserId: targetUserId, kickedBy: session.user.email }),
       },
     });
+
+    // Recalculate scores — removing a member changes pool denominators for everyone
+    await refreshLeagueLeaderboard(leagueId);
 
     return res.status(200).json({ success: true });
   } catch {

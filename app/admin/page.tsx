@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions, isAdmin } from '../../lib/auth';
 import { db } from '../../lib/db';
 import AdminPanel from './AdminPanel';
-import type { StoredResult } from './AdminPanel';
+import type { StoredResult, StoredBonusAnswer } from './AdminPanel';
 
 export const metadata = { title: 'Admin — Enter Results | WC26' };
 
@@ -14,11 +14,11 @@ export default async function AdminPage() {
     notFound();
   }
 
-  const rawResults = await db.fixtureResult.findMany({
-    orderBy: { matchNumber: 'asc' },
-  });
+  const [rawResults, rawBonusAnswers] = await Promise.all([
+    db.fixtureResult.findMany({ orderBy: { matchNumber: 'asc' } }),
+    db.bonusAnswer.findMany(),
+  ]);
 
-  // Serialize Dates to strings for the client component
   const existingResults: StoredResult[] = rawResults.map((r) => ({
     matchNumber: r.matchNumber,
     result: r.result,
@@ -28,5 +28,12 @@ export default async function AdminPage() {
     updatedBy: r.updatedBy,
   }));
 
-  return <AdminPanel existingResults={existingResults} />;
+  const existingBonusAnswers: StoredBonusAnswer[] = rawBonusAnswers.map((a) => ({
+    questionId: a.questionId,
+    answer: a.answer,
+    updatedAt: a.updatedAt.toISOString(),
+    updatedBy: a.updatedBy,
+  }));
+
+  return <AdminPanel existingResults={existingResults} existingBonusAnswers={existingBonusAnswers} />;
 }

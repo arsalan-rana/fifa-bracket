@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../../lib/auth';
+import { authOptions, isAdmin } from '../../../lib/auth';
 import { db } from '../../../lib/db';
 import NavBar from '../../components/NavBar';
 
@@ -26,7 +26,8 @@ export default async function LeagueLayout({ children, params }: Props) {
   const isMember = await db.leagueMember.findUnique({
     where: { leagueId_userId: { leagueId: league.id, userId: user.id } },
   });
-  if (!isMember) notFound();
+  const canAccess = !!isMember || league.ownerId === user.id || isAdmin(session.user.email);
+  if (!canAccess) notFound();
 
   return (
     <div className="min-h-screen flex flex-col">

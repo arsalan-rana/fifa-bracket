@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../lib/auth';
+import { authOptions, isAdmin } from '../../lib/auth';
 import { db } from '../../lib/db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -24,7 +24,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const isMember = await db.leagueMember.findUnique({
     where: { leagueId_userId: { leagueId: league.id, userId: user.id } },
   });
-  if (!isMember) return res.status(403).json({ error: 'Not a member' });
+
+  const canAccess = !!isMember || league.ownerId === user.id || isAdmin(session.user.email);
+  if (!canAccess) return res.status(403).json({ error: 'Not a member' });
 
   return res.status(200).json({
     id: league.id,
@@ -33,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     isPrizePool: league.isPrizePool,
     buyInAmount: league.buyInAmount ? Number(league.buyInAmount) : null,
     buyInCurrency: league.buyInCurrency,
-    isVerified: isMember.isVerified,
+    isVerified: isMember?.isVerified ?? true,
     memberCount: league._count.members,
   });
 }

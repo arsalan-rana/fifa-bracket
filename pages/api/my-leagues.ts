@@ -22,6 +22,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     orderBy: { joinedAt: 'desc' },
   });
 
-  const leagues = memberships.map((m: { league: unknown }) => m.league);
+  const memberLeagueIds = new Set(memberships.map((m) => m.league.id));
+
+  // Leagues the user owns but isn't a member of
+  const ownedOnly = await db.league.findMany({
+    where: {
+      ownerId: user.id,
+      ...(memberLeagueIds.size > 0 && { id: { notIn: [...memberLeagueIds] } }),
+    },
+    include: { _count: { select: { members: true } } },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  // Leaderboard rank for each member league
+  const leaderboardEntries = memberLeagueIds.size > 0
+    ? await db.leaderboardEntry.findMany({
+        where: { userId: user.id, leagueId: { in: [...memberLeagueIds] } },
+        select: { leagueId: true, rank: true, totalPoints: true },
+      })
+    : [];
+
+  const rankMap: Record<string, { rank: number; totalPoints: number }> = Object.fromEntries(
+    leaderboardEntries.map((e) => [e.leagueId, { rank: e.rank, totalPoints: e.totalPoints }])
+  );
+
+  const leagues = [
+    ...memberships.map((m) => ({
+      ...m.league,
+      isMember: true,
+      myRank: rankMap[m.league.id] ?? null,
+    })),
+    ...ownedOnly.map((l) => ({
+      ...l,
+      isMember: false,
+      myRank: null,
+    })),
+  ];
+
   return res.status(200).json({ leagues });
 }

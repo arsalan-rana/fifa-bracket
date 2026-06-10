@@ -21,12 +21,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: 'Only the admin can create leagues' });
   }
 
-  const { name, description, isPrizePool, buyInAmount, buyInCurrency } = req.body as {
+  const { name, description, isPrizePool, buyInAmount, buyInCurrency, joinAsPlayer } = req.body as {
     name: string;
     description?: string;
     isPrizePool?: boolean;
     buyInAmount?: number;
     buyInCurrency?: string;
+    joinAsPlayer?: boolean;
   };
   if (!name?.trim()) return res.status(400).json({ error: 'League name required' });
   if (isPrizePool && (typeof buyInAmount !== 'number' || buyInAmount <= 0)) {
@@ -50,7 +51,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         isPrizePool: isPrizePool ?? false,
         buyInAmount: isPrizePool && buyInAmount ? buyInAmount : undefined,
         buyInCurrency: buyInCurrency ?? 'CAD',
-        members: { create: { userId: user.id, isVerified: true } },
+        ...(joinAsPlayer !== false && {
+          members: { create: { userId: user.id, isVerified: true } },
+        }),
       },
     });
 

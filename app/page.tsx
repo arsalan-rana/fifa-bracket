@@ -38,6 +38,8 @@ interface League {
   isPrizePool?: boolean;
   buyInAmount?: number;
   _count?: { members: number };
+  isMember?: boolean;
+  myRank?: { rank: number; totalPoints: number } | null;
 }
 
 export default function HomePage() {
@@ -53,6 +55,7 @@ export default function HomePage() {
   const [newLeagueIsPrizePool, setNewLeagueIsPrizePool] = useState(false);
   const [newLeagueBuyIn, setNewLeagueBuyIn] = useState('');
   const [newLeagueCurrency, setNewLeagueCurrency] = useState('CAD');
+  const [newLeagueJoinAsPlayer, setNewLeagueJoinAsPlayer] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -92,6 +95,7 @@ export default function HomePage() {
           isPrizePool: newLeagueIsPrizePool,
           buyInAmount: newLeagueIsPrizePool ? Number(newLeagueBuyIn) : undefined,
           buyInCurrency: newLeagueCurrency,
+          joinAsPlayer: newLeagueJoinAsPlayer,
         }),
       });
       const data = await res.json();
@@ -102,7 +106,12 @@ export default function HomePage() {
       setNewLeagueIsPrizePool(false);
       setNewLeagueBuyIn('');
       setNewLeagueCurrency('CAD');
-      router.push(`/leagues/${data.league.slug}`);
+      setNewLeagueJoinAsPlayer(true);
+      if (newLeagueJoinAsPlayer) {
+        router.push(`/leagues/${data.league.slug}`);
+      } else {
+        fetchLeagues();
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to create league');
     } finally {
@@ -286,16 +295,39 @@ export default function HomePage() {
                           <Typography variant="h6" sx={{ fontWeight: 700 }}>
                             {league.name}
                           </Typography>
-                          <Chip
-                            size="small"
-                            label={`👥 ${league._count?.members ?? 1}`}
-                            sx={{ background: 'rgba(201,167,58,0.15)', color: 'secondary.main' }}
-                          />
+                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            {league.isMember === false && (
+                              <Chip
+                                size="small"
+                                label="Owner"
+                                sx={{ background: 'rgba(139,92,246,0.15)', color: '#A78BFA', fontSize: '0.65rem' }}
+                              />
+                            )}
+                            <Chip
+                              size="small"
+                              label={`👥 ${league._count?.members ?? 0}`}
+                              sx={{ background: 'rgba(201,167,58,0.15)', color: 'secondary.main' }}
+                            />
+                          </Box>
                         </Box>
                         {league.description && (
                           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                             {league.description}
                           </Typography>
+                        )}
+                        {league.myRank && league.myRank.rank > 0 && (
+                          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                            <Chip
+                              size="small"
+                              label={`#${league.myRank.rank}`}
+                              sx={{ background: 'rgba(16,185,129,0.15)', color: '#10B981', fontSize: '0.65rem', fontWeight: 700 }}
+                            />
+                            <Chip
+                              size="small"
+                              label={`${league.myRank.totalPoints} pts`}
+                              sx={{ background: 'rgba(255,255,255,0.05)', color: 'text.secondary', fontSize: '0.65rem' }}
+                            />
+                          </Box>
                         )}
                         <Typography variant="caption" color="text.secondary">
                           Invite: <code style={{ color: '#C9A73A' }}>{league.inviteCode.slice(0, 8)}</code>
@@ -371,6 +403,22 @@ export default function HomePage() {
                 placeholder="CAD"
               />
             </Box>
+          )}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={newLeagueJoinAsPlayer}
+                onChange={(e) => setNewLeagueJoinAsPlayer(e.target.checked)}
+                color="secondary"
+              />
+            }
+            label="Join as a player"
+            sx={{ mt: newLeagueIsPrizePool ? 1 : 0 }}
+          />
+          {!newLeagueJoinAsPlayer && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 0.5 }}>
+              You&apos;ll manage this league as owner without being a participant.
+            </Typography>
           )}
           {error && (
             <Typography color="error" variant="body2" sx={{ mt: 1 }}>

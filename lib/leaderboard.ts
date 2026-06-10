@@ -1,106 +1,137 @@
 import { db } from './db';
 import { PHASES, ALL_FIXTURES, TOURNAMENT, BONUS_QUESTIONS, type Phase } from '../data/fifa-2026';
-import { calcGroupPoints, calcPoolPoints, calcBonusPoints } from './tournament';
+import { calcGroupPoints, calcPoolPoints, calcBonusPoints, computeClosestWinners } from './tournament';
 
 export async function refreshLeagueLeaderboard(leagueId: string): Promise<number> {
-  const [members, fixtureResults, bonusAnswers] = await Promise.all([
+  const [members, fixtureResults, bonusAnswers, allPredictions, allChips, allBonus] = await Promise.all([
     db.leagueMember.findMany({ where: { leagueId }, include: { user: true } }),
     db.fixtureResult.findMany(),
     db.bonusAnswer.findMany(),
+    db.prediction.findMany({ where: { leagueId } }),
+    db.chipUsage.findMany({ where: { leagueId } }),
+    db.bonusPrediction.findMany({ where: { leagueId } }),
   ]);
 
-  const allPredictions = await db.prediction.findMany({ where: { leagueId } });
+  const results = fixtureResults.map((r) => ({ matchNumber: r.matchNumber, result: r.result }));
+  const bonusAnswersMapped = bonusAnswers.map((a) => ({ questionId: a.questionId, answer: a.answer }));
 
-  const entries = await Promise.all(
-    members.map(async (member) => {
-      const userPredictions = allPredictions.filter((p) => p.userId === member.userId);
-      const [userChips, userBonus] = await Promise.all([
-        db.chipUsage.findMany({ where: { userId: member.userId, leagueId } }),
-        db.bonusPrediction.findMany({ where: { userId: member.userId, leagueId } }),
-      ]);
+  // Pre-compute closest-answer winners for number-type bonus questions
+  const closestWinners = computeClosestWinners(
+    allBonus.map((b) => ({ userId: b.userId, questionId: b.questionId, answer: b.answer })),
+    bonusAnswersMapped,
+    BONUS_QUESTIONS,
+  );
 
-      const results = fixtureResults.map((r) => ({ matchNumber: r.matchNumber, result: r.result }));
-      const allPredForPool = allPredictions.map((p) => ({
-        matchNumber: p.matchNumber,
-        predictedWinner: p.predictedWinner,
-        userId: p.userId,
-      }));
-      const chips = userChips.map((c) => ({ matchNumber: c.matchNumber, chipType: c.chipType, phase: c.phase }));
+  // Only count predictions from current members for pool share denominator
+  const memberUserIds = new Set(members.map((m) => m.userId));
+  const allPredForPool = allPredictions
+    .filter((p) => memberUserIds.has(p.userId))
+    .map((p) => ({ matchNumber: p.matchNumber, predictedWinner: p.predictedWinner, userId: p.userId }));
 
-      const groupPhase = PHASES.find((p) => p.id === 'group')!;
-      const groupPoints = groupPhase.scoringType === 'pool'
-        ? calcPoolPoints(
-            userPredictions.map((p) => ({ matchNumber: p.matchNumber, predictedWinner: p.predictedWinner })),
-            results,
-            allPredForPool,
-            chips,
-            'group',
-            groupPhase.poolPoints ?? 80
-          )
-        : calcGroupPoints(
-            userPredictions.map((p) => ({ matchNumber: p.matchNumber, predictedWinner: p.predictedWinner })),
-            results,
-            chips,
-            groupPhase.fixedPoints ?? 5
-          );
+  const entries = members.map((member) => {
+    const userPredictions = allPredictions.filter((p) => p.userId === member.userId);
+    const userChips = allChips.filter((c) => c.userId === member.userId);
+    const userBonus = allBonus.filter((b) => b.userId === member.userId);
 
-      const knockoutPhases: Phase[] = ['round32', 'round16', 'quarter', 'semi', 'final'];
-      const knockoutPoints: Record<string, number> = {};
-      for (const phase of knockoutPhases) {
-        const phaseConfig = PHASES.find((p) => p.id === phase)!;
-        knockoutPoints[phase] = calcPoolPoints(
+    const chips = userChips.map((c) => ({ matchNumber: c.matchNumber, chipType: c.chipType, phase: c.phase }));
+
+    const groupPhase = PHASES.find((p) => p.id === 'group')!;
+    const groupPoints = groupPhase.scoringType === 'pool'
+      ? calcPoolPoints(
           userPredictions.map((p) => ({ matchNumber: p.matchNumber, predictedWinner: p.predictedWinner })),
           results,
           allPredForPool,
           chips,
-          phase,
-          phaseConfig.poolPoints ?? 100
+          'group',
+          groupPhase.poolPoints ?? 80
+        )
+      : calcGroupPoints(
+          userPredictions.map((p) => ({ matchNumber: p.matchNumber, predictedWinner: p.predictedWinner })),
+          results,
+          chips,
+          groupPhase.fixedPoints ?? 5
         );
-      }
 
-      const bonusPoints = calcBonusPoints(
-        userBonus.map((b) => ({ questionId: b.questionId, answer: b.answer })),
-        bonusAnswers.map((a) => ({ questionId: a.questionId, answer: a.answer })),
-        BONUS_QUESTIONS
+    const knockoutPhases: Phase[] = ['round32', 'round16', 'quarter', 'semi', 'final'];
+    const knockoutPoints: Record<string, number> = {};
+    for (const phase of knockoutPhases) {
+      const phaseConfig = PHASES.find((p) => p.id === phase)!;
+      knockoutPoints[phase] = calcPoolPoints(
+        userPredictions.map((p) => ({ matchNumber: p.matchNumber, predictedWinner: p.predictedWinner })),
+        results,
+        allPredForPool,
+        chips,
+        phase,
+        phaseConfig.poolPoints ?? 100
       );
+    }
 
-      const penalty = userPredictions.filter((p) => p.isLate).length * TOURNAMENT.scoring.latePenaltyPerDay;
+    const bonusPoints = calcBonusPoints(
+      member.userId,
+      userBonus.map((b) => ({ questionId: b.questionId, answer: b.answer })),
+      bonusAnswersMapped,
+      BONUS_QUESTIONS,
+      closestWinners,
+    );
 
-      const totalPoints =
-        groupPoints +
-        (knockoutPoints.round32 ?? 0) +
-        (knockoutPoints.round16 ?? 0) +
-        (knockoutPoints.quarter ?? 0) +
-        (knockoutPoints.semi ?? 0) +
-        (knockoutPoints.final ?? 0) +
-        bonusPoints -
-        penalty;
+    const penalty = userPredictions.filter((p) => p.isLate).length * TOURNAMENT.scoring.latePenaltyPerDay;
 
-      return {
-        userId: member.userId,
-        totalPoints,
-        groupPoints,
-        round32Points: knockoutPoints.round32 ?? 0,
-        round16Points: knockoutPoints.round16 ?? 0,
-        quarterPoints: knockoutPoints.quarter ?? 0,
-        semiPoints: knockoutPoints.semi ?? 0,
-        finalPoints: knockoutPoints.final ?? 0,
-        bonusPoints,
-        penalty,
-      };
-    })
-  );
+    const totalPoints =
+      groupPoints +
+      (knockoutPoints.round32 ?? 0) +
+      (knockoutPoints.round16 ?? 0) +
+      (knockoutPoints.quarter ?? 0) +
+      (knockoutPoints.semi ?? 0) +
+      (knockoutPoints.final ?? 0) +
+      bonusPoints -
+      penalty;
 
-  const sorted = entries.sort((a, b) => b.totalPoints - a.totalPoints);
+    return {
+      userId: member.userId,
+      totalPoints,
+      groupPoints,
+      round32Points: knockoutPoints.round32 ?? 0,
+      round16Points: knockoutPoints.round16 ?? 0,
+      quarterPoints: knockoutPoints.quarter ?? 0,
+      semiPoints: knockoutPoints.semi ?? 0,
+      finalPoints: knockoutPoints.final ?? 0,
+      bonusPoints,
+      penalty,
+    };
+  });
+
+  // Sort with tiebreakers: total → knockout total → bonus → fewer late picks
+  const sorted = [...entries].sort((a, b) => {
+    if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+    const aKO = a.round32Points + a.round16Points + a.quarterPoints + a.semiPoints + a.finalPoints;
+    const bKO = b.round32Points + b.round16Points + b.quarterPoints + b.semiPoints + b.finalPoints;
+    if (bKO !== aKO) return bKO - aKO;
+    if (b.bonusPoints !== a.bonusPoints) return b.bonusPoints - a.bonusPoints;
+    return a.penalty - b.penalty;
+  });
+
+  // Assign ranks — tied players share the same rank
+  function tieKey(e: typeof sorted[0]) {
+    const ko = e.round32Points + e.round16Points + e.quarterPoints + e.semiPoints + e.finalPoints;
+    return `${e.totalPoints}|${ko}|${e.bonusPoints}|${e.penalty}`;
+  }
+  let currentRank = 1;
+  const withRanks = sorted.map((entry, idx) => {
+    if (idx > 0 && tieKey(sorted[idx - 1]) !== tieKey(entry)) {
+      currentRank = idx + 1;
+    }
+    return { ...entry, rank: currentRank };
+  });
+
   const prevEntries = await db.leaderboardEntry.findMany({ where: { leagueId } });
   const prevRankMap = new Map(prevEntries.map((e) => [e.userId, e.rank]));
 
   await db.$transaction(
-    sorted.map((entry, idx) =>
+    withRanks.map((entry) =>
       db.leaderboardEntry.upsert({
         where: { leagueId_userId: { leagueId, userId: entry.userId } },
         update: {
-          rank: idx + 1,
+          rank: entry.rank,
           prevRank: prevRankMap.get(entry.userId) ?? null,
           totalPoints: entry.totalPoints,
           groupPoints: entry.groupPoints,
@@ -116,7 +147,7 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
         create: {
           leagueId,
           userId: entry.userId,
-          rank: idx + 1,
+          rank: entry.rank,
           prevRank: null,
           totalPoints: entry.totalPoints,
           groupPoints: entry.groupPoints,

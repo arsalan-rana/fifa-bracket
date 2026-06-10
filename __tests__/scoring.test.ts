@@ -2,6 +2,7 @@ import {
   calcGroupPoints,
   calcPoolPoints,
   calcBonusPoints,
+  computeClosestWinners,
 } from '../lib/tournament';
 
 import {
@@ -143,6 +144,20 @@ describe('calcPoolPoints', () => {
     expect(calcPoolPoints(myPreds, results, allPreds, chips, PHASE, POOL)).toBe(POOL * 2);
   });
 
+  it('floors fractional shares — 3 correct pickers each get floor(pool/3)', () => {
+    const myPreds = makeUserPreds('ARG');
+    const allPreds = [
+      { matchNumber: MATCH_NUM, predictedWinner: 'ARG' },
+      { matchNumber: MATCH_NUM, predictedWinner: 'ARG' },
+      { matchNumber: MATCH_NUM, predictedWinner: 'ARG' },
+    ];
+    const results = makeResults('ARG');
+    const chips: { matchNumber: number | null; chipType: string; phase: string }[] = [];
+    // floor(160/3) = 53, not round(53.33) = 53 either — but with pool=160 both give 53
+    // Use pool=80 to expose the difference: floor(80/3)=26, round(80/3)=27
+    expect(calcPoolPoints(makeUserPreds('ARG'), results, allPreds, chips, PHASE, 80)).toBe(26);
+  });
+
   it('returns 0 when no correct pickers exist', () => {
     const myPreds = makeUserPreds('FRA');
     const allPreds = [{ matchNumber: MATCH_NUM, predictedWinner: 'FRA' }];
@@ -171,28 +186,30 @@ describe('calcBonusPoints', () => {
     { id: 'host-usa-knockouts', points: 10 },
   ];
 
+  const USER_A = 'user-a';
+
   it('scores a question\'s points for a correct answer', () => {
     const predictions = [{ questionId: 'golden-boot', answer: 'Mbappe' }];
     const answers = [{ questionId: 'golden-boot', answer: 'Mbappe' }];
-    expect(calcBonusPoints(predictions, answers, questions)).toBe(40);
+    expect(calcBonusPoints(USER_A, predictions, answers, questions)).toBe(40);
   });
 
   it('scores 0 for a wrong answer', () => {
     const predictions = [{ questionId: 'golden-boot', answer: 'Ronaldo' }];
     const answers = [{ questionId: 'golden-boot', answer: 'Mbappe' }];
-    expect(calcBonusPoints(predictions, answers, questions)).toBe(0);
+    expect(calcBonusPoints(USER_A, predictions, answers, questions)).toBe(0);
   });
 
   it('is case-insensitive when matching answers', () => {
     const predictions = [{ questionId: 'golden-boot', answer: 'MBAPPE' }];
     const answers = [{ questionId: 'golden-boot', answer: 'mbappe' }];
-    expect(calcBonusPoints(predictions, answers, questions)).toBe(40);
+    expect(calcBonusPoints(USER_A, predictions, answers, questions)).toBe(40);
   });
 
   it('trims whitespace before comparing', () => {
     const predictions = [{ questionId: 'world-cup-winner', answer: '  FRA  ' }];
     const answers = [{ questionId: 'world-cup-winner', answer: 'FRA' }];
-    expect(calcBonusPoints(predictions, answers, questions)).toBe(25);
+    expect(calcBonusPoints(USER_A, predictions, answers, questions)).toBe(25);
   });
 
   it('sums per-question points across multiple correct answers', () => {
@@ -206,19 +223,19 @@ describe('calcBonusPoints', () => {
       { questionId: 'golden-ball', answer: 'Messi' },
       { questionId: 'world-cup-winner', answer: 'FRA' },
     ];
-    expect(calcBonusPoints(predictions, answers, questions)).toBe(40 + 30 + 25);
+    expect(calcBonusPoints(USER_A, predictions, answers, questions)).toBe(40 + 30 + 25);
   });
 
   it('skips a question with no matching answer', () => {
     const predictions = [{ questionId: 'golden-boot', answer: 'Mbappe' }];
     const answers: { questionId: string; answer: string }[] = []; // no answer recorded yet
-    expect(calcBonusPoints(predictions, answers, questions)).toBe(0);
+    expect(calcBonusPoints(USER_A, predictions, answers, questions)).toBe(0);
   });
 
   it('scores 0 for a question not in the questions list', () => {
     const predictions = [{ questionId: 'unknown-q', answer: 'something' }];
     const answers = [{ questionId: 'unknown-q', answer: 'something' }];
-    expect(calcBonusPoints(predictions, answers, questions)).toBe(0);
+    expect(calcBonusPoints(USER_A, predictions, answers, questions)).toBe(0);
   });
 
   it('partial credit — only correct answers sum up', () => {
@@ -232,7 +249,94 @@ describe('calcBonusPoints', () => {
       { questionId: 'golden-ball', answer: 'Messi' },
       { questionId: 'host-usa-knockouts', answer: 'Yes' },
     ];
-    expect(calcBonusPoints(predictions, answers, questions)).toBe(40 + 10);
+    expect(calcBonusPoints(USER_A, predictions, answers, questions)).toBe(40 + 10);
+  });
+});
+
+// ─── computeClosestWinners ────────────────────────────────────────────────────
+
+describe('computeClosestWinners', () => {
+  const numberQuestions = [{ id: 'total-goals', type: 'number' }];
+
+  it('returns empty map when no answers recorded yet', () => {
+    const preds = [{ userId: 'u1', questionId: 'total-goals', answer: '160' }];
+    const answers: { questionId: string; answer: string }[] = [];
+    expect(computeClosestWinners(preds, answers, numberQuestions).size).toBe(0);
+  });
+
+  it('sole predictor wins if there is any prediction', () => {
+    const preds = [{ userId: 'u1', questionId: 'total-goals', answer: '160' }];
+    const answers = [{ questionId: 'total-goals', answer: '163' }];
+    const winners = computeClosestWinners(preds, answers, numberQuestions);
+    expect(winners.get('total-goals')?.has('u1')).toBe(true);
+  });
+
+  it('closest single predictor wins', () => {
+    const preds = [
+      { userId: 'u1', questionId: 'total-goals', answer: '160' },
+      { userId: 'u2', questionId: 'total-goals', answer: '162' },
+      { userId: 'u3', questionId: 'total-goals', answer: '170' },
+    ];
+    const answers = [{ questionId: 'total-goals', answer: '163' }];
+    const winners = computeClosestWinners(preds, answers, numberQuestions);
+    const set = winners.get('total-goals')!;
+    expect(set.has('u2')).toBe(true);
+    expect(set.has('u1')).toBe(false);
+    expect(set.has('u3')).toBe(false);
+  });
+
+  it('multiple predictors equidistant both win', () => {
+    const preds = [
+      { userId: 'u1', questionId: 'total-goals', answer: '160' }, // dist 3
+      { userId: 'u2', questionId: 'total-goals', answer: '166' }, // dist 3
+    ];
+    const answers = [{ questionId: 'total-goals', answer: '163' }];
+    const winners = computeClosestWinners(preds, answers, numberQuestions);
+    const set = winners.get('total-goals')!;
+    expect(set.has('u1')).toBe(true);
+    expect(set.has('u2')).toBe(true);
+  });
+
+  it('ignores non-number type questions', () => {
+    const mixed = [
+      { id: 'total-goals', type: 'number' },
+      { id: 'golden-boot', type: 'text' },
+    ];
+    const preds = [{ userId: 'u1', questionId: 'golden-boot', answer: 'Mbappe' }];
+    const answers = [{ questionId: 'golden-boot', answer: 'Mbappe' }];
+    const winners = computeClosestWinners(preds, answers, mixed);
+    expect(winners.has('golden-boot')).toBe(false);
+  });
+});
+
+describe('calcBonusPoints — number type (closest wins)', () => {
+  const questions = [{ id: 'total-goals', points: 40, type: 'number' }];
+  const answers = [{ questionId: 'total-goals', answer: '163' }];
+
+  it('awards points to the closest predictor', () => {
+    const allPreds = [
+      { userId: 'u1', questionId: 'total-goals', answer: '162' }, // closest
+      { userId: 'u2', questionId: 'total-goals', answer: '150' },
+    ];
+    const closestWinners = computeClosestWinners(allPreds, answers, questions);
+    const u1Preds = [{ questionId: 'total-goals', answer: '162' }];
+    const u2Preds = [{ questionId: 'total-goals', answer: '150' }];
+    expect(calcBonusPoints('u1', u1Preds, answers, questions, closestWinners)).toBe(40);
+    expect(calcBonusPoints('u2', u2Preds, answers, questions, closestWinners)).toBe(0);
+  });
+
+  it('awards 0 when no closestWinners map is provided (answer not set yet)', () => {
+    const preds = [{ questionId: 'total-goals', answer: '163' }];
+    expect(calcBonusPoints('u1', preds, answers, questions)).toBe(0);
+  });
+
+  it('does not award via exact-string match for number type', () => {
+    // Without closestWinners, exact match should NOT award points for number type
+    const allPreds = [{ userId: 'u1', questionId: 'total-goals', answer: '163' }];
+    const closestWinners = computeClosestWinners(allPreds, answers, questions);
+    const preds = [{ questionId: 'total-goals', answer: '163' }];
+    // With closestWinners and correct answer, should get points
+    expect(calcBonusPoints('u1', preds, answers, questions, closestWinners)).toBe(40);
   });
 });
 

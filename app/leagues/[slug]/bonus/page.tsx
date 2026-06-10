@@ -114,8 +114,8 @@ export default function BonusPage({ params }: Props) {
         </Typography>
 
         {isPastDeadline && (
-          <Alert severity="warning" sx={{ mb: 3 }}>
-            Deadline has passed — submissions are late.
+          <Alert severity="error" sx={{ mb: 3 }}>
+            Deadline has passed — bonus answers are locked and can no longer be changed.
           </Alert>
         )}
 
@@ -161,7 +161,7 @@ export default function BonusPage({ params }: Props) {
                       value={answers[q.id] ?? ''}
                       label="Select team"
                       onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                      disabled={false}
+                      disabled={isPastDeadline}
                     >
                       {Object.values(TEAMS).map((t) => (
                         <MenuItem key={t.code} value={t.code}>
@@ -177,6 +177,7 @@ export default function BonusPage({ params }: Props) {
                       value={answers[q.id] ?? ''}
                       label="Select answer"
                       onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                      disabled={isPastDeadline}
                     >
                       {q.options.map((opt) => (
                         <MenuItem key={opt} value={opt}>{opt}</MenuItem>
@@ -191,6 +192,7 @@ export default function BonusPage({ params }: Props) {
                     onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
                     placeholder={q.type === 'number' ? 'Enter a number' : 'Your answer'}
                     type={q.type === 'number' ? 'number' : 'text'}
+                    disabled={isPastDeadline}
                   />
                 )}
 
@@ -212,8 +214,8 @@ export default function BonusPage({ params }: Props) {
             variant="contained"
             size="large"
             onClick={handleSubmit}
-            disabled={submitting || completedCount === 0 || !isVerified}
-            title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
+            disabled={submitting || completedCount === 0 || !isVerified || isPastDeadline}
+            title={isPastDeadline ? 'Deadline has passed' : !isVerified ? 'Your buy-in payment is pending verification' : undefined}
             sx={{ px: 6, py: 1.5 }}
           >
             {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : '⭐ '}

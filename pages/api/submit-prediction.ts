@@ -33,14 +33,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: 'Payment not verified. Please e-transfer the buy-in to the league owner.' });
   }
 
-  const isLate = isPhasePastDeadline(phase);
+  const phaseIsLate = isPhasePastDeadline(phase);
   const phaseConfig = getPhaseConfig(phase);
 
+  // Pre-fetch wildcard chips to exempt specific matches from the late penalty
+  const wildcardChips = await db.chipUsage.findMany({
+    where: { userId: user.id, leagueId, chipType: 'wildcard' },
+  });
+  const wildcardMatchNumbers = new Set(wildcardChips.map((c) => c.matchNumber).filter((n): n is number => n !== null));
+
   // Validate each prediction
+  const now = new Date();
   for (const pred of predictions) {
     const fixture = getFixture(pred.matchNumber);
     if (!fixture) return res.status(400).json({ error: `Invalid match number: ${pred.matchNumber}` });
     if (fixture.phase !== phase) return res.status(400).json({ error: `Match ${pred.matchNumber} is not in phase ${phase}` });
+
+    // Started matches are always locked — wildcard cannot override this
+    if (new Date(fixture.date) <= now) {
+      return res.status(400).json({ error: `Match ${pred.matchNumber} has already started — pick is locked` });
+    }
 
     const validWinners = [fixture.team1, fixture.team2];
     if (fixture.canDraw) validWinners.push('DRAW');
@@ -50,10 +62,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Upsert each prediction
+    // Upsert each prediction; wildcard chip exempts a match from the late penalty
     await db.$transaction(
-      predictions.map((pred) =>
-        db.prediction.upsert({
+      predictions.map((pred) => {
+        const isLate = phaseIsLate && !wildcardMatchNumbers.has(pred.matchNumber);
+        return db.prediction.upsert({
           where: {
             userId_leagueId_matchNumber: {
               userId: user.id,
@@ -73,8 +86,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             predictedWinner: pred.predictedWinner,
             isLate,
           },
-        })
-      )
+        });
+      })
     );
 
     await db.activityLog.create({
@@ -87,12 +100,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           phaseName: phaseConfig.name,
           count: predictions.length,
           userName: session.user.name,
-          isLate,
+          isLate: phaseIsLate,
         }),
       },
     });
 
-    return res.status(200).json({ success: true, count: predictions.length, isLate });
+    return res.status(200).json({ success: true, count: predictions.length, isLate: phaseIsLate });
   } catch {
     return res.status(500).json({ error: 'Failed to submit predictions' });
   }

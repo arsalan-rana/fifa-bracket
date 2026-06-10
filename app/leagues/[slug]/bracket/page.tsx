@@ -8,12 +8,18 @@ import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import CardActionArea from '@mui/material/CardActionArea';
 import Chip from '@mui/material/Chip';
 import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Snackbar from '@mui/material/Snackbar';
@@ -397,6 +403,10 @@ export default function BracketPage({ params }: Props) {
   const [leaguePicks, setLeaguePicks] = useState<Record<number, Record<string, number>>>({});
   const [leagueMemberCount, setLeagueMemberCount] = useState(1);
   const [teamDrawer, setTeamDrawer] = useState<string | null>(null);
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [otherLeagues, setOtherLeagues] = useState<{ id: string; name: string; _count?: { members: number } }[]>([]);
+  const [copySourceId, setCopySourceId] = useState('');
+  const [copying, setCopying] = useState(false);
 
   const currentPhase = getCurrentPhase();
   const phaseConfig = PHASES.find((p) => p.id === currentPhase)!;
@@ -541,6 +551,54 @@ export default function BracketPage({ params }: Props) {
     }
   }
 
+  async function handleOpenCopy() {
+    const res = await fetch('/api/my-leagues');
+    if (!res.ok) return;
+    const data = await res.json();
+    const others = (data.leagues as { id: string; name: string; isMember?: boolean; _count?: { members: number } }[])
+      .filter((l) => l.id !== leagueId && l.isMember !== false);
+    setOtherLeagues(others);
+    setCopySourceId(others[0]?.id ?? '');
+    setCopyOpen(true);
+  }
+
+  async function handleCopyPicks() {
+    if (!copySourceId || !leagueId) return;
+    setCopying(true);
+    try {
+      const res = await fetch('/api/copy-picks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromLeagueId: copySourceId, toLeagueId: leagueId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setCopyOpen(false);
+      // Reload predictions to reflect copied picks
+      const predRes = await fetch(`/api/get-predictions?leagueId=${leagueId}`);
+      if (predRes.ok) {
+        const predData = await predRes.json();
+        const predMap: Predictions = {};
+        for (const p of predData.predictions) predMap[p.matchNumber] = p.predictedWinner;
+        setPredictions(predMap);
+      }
+      const parts = [];
+      if (data.count > 0) parts.push(`${data.count} match pick${data.count === 1 ? '' : 's'}`);
+      if (data.bonusCount > 0) parts.push(`${data.bonusCount} bonus answer${data.bonusCount === 1 ? '' : 's'}`);
+      const hasAnything = parts.length > 0;
+      setSnack({
+        msg: hasAnything
+          ? `📋 Copied ${parts.join(' + ')}`
+          : 'No picks to copy from that league',
+        severity: hasAnything ? 'success' : 'error',
+      });
+    } catch (e: unknown) {
+      setSnack({ msg: e instanceof Error ? e.message : 'Failed to copy picks', severity: 'error' });
+    } finally {
+      setCopying(false);
+    }
+  }
+
   async function handleSubmit(phase: Phase) {
     if (!leagueId) return;
     setSubmitting(true);
@@ -622,9 +680,9 @@ export default function BracketPage({ params }: Props) {
             </Typography>
           </Box>
 
-          {/* AI Autopick */}
-          {!isPastDeadline && isVerified && GROUP_FIXTURES.filter((f) => f.phase === currentPhase && !predictions[f.matchNumber] && f.aiPrediction).length > 0 && (
-            <Box sx={{ mt: 1.5 }}>
+          {/* AI Autopick + Copy Picks */}
+          <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+            {!isPastDeadline && isVerified && GROUP_FIXTURES.filter((f) => f.phase === currentPhase && !predictions[f.matchNumber] && f.aiPrediction).length > 0 && (
               <Button
                 variant="outlined"
                 size="small"
@@ -633,10 +691,23 @@ export default function BracketPage({ params }: Props) {
               >
                 ✨ Fill with AI Picks
               </Button>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Review and save when ready.
-              </Typography>
-            </Box>
+            )}
+            {isVerified && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />}
+                onClick={handleOpenCopy}
+                sx={{ fontWeight: 700, borderRadius: 2, fontSize: '0.8rem' }}
+              >
+                Copy from another league
+              </Button>
+            )}
+          </Box>
+          {!isPastDeadline && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              Review and save when ready.
+            </Typography>
           )}
 
           {isPastDeadline && (
@@ -780,6 +851,60 @@ export default function BracketPage({ params }: Props) {
       </Container>
 
       <TeamInfoDrawer teamCode={teamDrawer} onClose={() => setTeamDrawer(null)} />
+
+      {/* Copy picks dialog */}
+      <Dialog open={copyOpen} onClose={() => setCopyOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>📋 Copy Picks from Another League</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Select a league to copy your picks from. Only picks for upcoming matches will be copied — remember to save after.
+          </Typography>
+          {otherLeagues.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+              You&apos;re not in any other leagues.
+            </Typography>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {otherLeagues.map((l) => (
+                <Card
+                  key={l.id}
+                  variant="outlined"
+                  sx={{
+                    border: '1px solid',
+                    borderColor: copySourceId === l.id ? 'primary.main' : 'divider',
+                    bgcolor: copySourceId === l.id ? 'rgba(0,61,165,0.08)' : 'background.paper',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <CardActionArea onClick={() => setCopySourceId(l.id)} sx={{ px: 2, py: 1.25 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" sx={{ fontWeight: copySourceId === l.id ? 700 : 400 }}>
+                        {l.name}
+                      </Typography>
+                      {l._count && (
+                        <Typography variant="caption" color="text.secondary">
+                          👥 {l._count.members}
+                        </Typography>
+                      )}
+                    </Box>
+                  </CardActionArea>
+                </Card>
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCopyOpen(false)} disabled={copying}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleCopyPicks}
+            disabled={copying || !copySourceId || otherLeagues.length === 0}
+          >
+            {copying ? <CircularProgress size={18} sx={{ mr: 1 }} /> : null}
+            Copy Picks
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={!!snack}

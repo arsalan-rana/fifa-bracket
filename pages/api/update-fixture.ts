@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions, isAdmin } from '../../lib/auth';
 import { db } from '../../lib/db';
 import { refreshLeagueLeaderboard } from '../../lib/leaderboard';
+import { getFixture, TEAMS } from '../../data/fifa-2026';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -19,6 +20,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   };
 
   if (!matchNumber || !result) return res.status(400).json({ error: 'matchNumber and result required' });
+
+  const fixture = getFixture(matchNumber);
+  if (!fixture) return res.status(400).json({ error: `Unknown match number: ${matchNumber}` });
+
+  // For group stage: result must be team1, team2, or DRAW
+  // For knockout: result must be a known team code (teams are TBD until the round plays out)
+  if (fixture.phase === 'group') {
+    if (result !== fixture.team1 && result !== fixture.team2 && result !== 'DRAW') {
+      return res.status(400).json({ error: `Invalid result "${result}" for match ${matchNumber} — must be ${fixture.team1}, ${fixture.team2}, or DRAW` });
+    }
+  } else {
+    if (!TEAMS[result]) {
+      return res.status(400).json({ error: `Unknown team code "${result}" — use a valid 2-3 letter team code` });
+    }
+    if (result === 'DRAW') {
+      return res.status(400).json({ error: 'Knockout matches cannot end in a draw' });
+    }
+  }
 
   try {
     const fixtureResult = await db.fixtureResult.upsert({

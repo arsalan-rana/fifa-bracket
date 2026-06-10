@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../lib/auth';
+import { authOptions, isAdmin } from '../../lib/auth';
 import { db } from '../../lib/db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -15,10 +15,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const user = await db.user.findUnique({ where: { email: session.user.email } });
   if (!user) return res.status(404).json({ error: 'User not found' });
 
+  const league = await db.league.findUnique({ where: { id: leagueId } });
+  if (!league) return res.status(404).json({ error: 'League not found' });
+
   const isMember = await db.leagueMember.findUnique({
     where: { leagueId_userId: { leagueId, userId: user.id } },
   });
-  if (!isMember) return res.status(403).json({ error: 'Not a league member' });
+  const canAccess = !!isMember || league.ownerId === user.id || isAdmin(session.user.email);
+  if (!canAccess) return res.status(403).json({ error: 'Not a league member' });
 
   const entries = await db.leaderboardEntry.findMany({
     where: { leagueId },

@@ -28,6 +28,7 @@ import {
   KNOCKOUT_FIXTURES,
   TEAMS,
   PHASES,
+  BONUS_QUESTIONS,
   type Fixture,
   type Phase,
 } from '../../data/fifa-2026';
@@ -41,8 +42,16 @@ export interface StoredResult {
   updatedBy: string;
 }
 
+export interface StoredBonusAnswer {
+  questionId: string;
+  answer: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
 interface AdminPanelProps {
   existingResults: StoredResult[];
+  existingBonusAnswers: StoredBonusAnswer[];
 }
 
 const PHASE_LABELS: Record<Phase, string> = {
@@ -438,12 +447,18 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
 
 // ─── Main AdminPanel ─────────────────────────────────────────────────────────
 
-export default function AdminPanel({ existingResults }: AdminPanelProps) {
+export default function AdminPanel({ existingResults, existingBonusAnswers }: AdminPanelProps) {
   const router = useRouter();
-  // Local state copy of results so the UI updates without a full page reload
   const [results, setResults] = useState<Map<number, StoredResult>>(
     () => new Map(existingResults.map((r) => [r.matchNumber, r]))
   );
+  const [bonusAnswers, setBonusAnswers] = useState<Map<string, StoredBonusAnswer>>(
+    () => new Map(existingBonusAnswers.map((a) => [a.questionId, a]))
+  );
+  const [bonusDraft, setBonusDraft] = useState<Record<string, string>>(
+    () => Object.fromEntries(existingBonusAnswers.map((a) => [a.questionId, a.answer]))
+  );
+  const [bonusSaving, setBonusSaving] = useState<Record<string, boolean>>({});
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
@@ -455,9 +470,36 @@ export default function AdminPanel({ existingResults }: AdminPanelProps) {
     });
     setToastMsg(`Match #${saved.matchNumber} saved!`);
     setToastOpen(true);
-    // Trigger a background revalidation so the server component updates too
     router.refresh();
   }, [router]);
+
+  async function saveBonusAnswer(questionId: string) {
+    const answer = bonusDraft[questionId]?.trim();
+    if (!answer) return;
+    setBonusSaving((prev) => ({ ...prev, [questionId]: true }));
+    try {
+      const res = await fetch('/api/update-bonus-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId, answer }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Save failed');
+      const now = new Date().toISOString();
+      setBonusAnswers((prev) => {
+        const next = new Map(prev);
+        next.set(questionId, { questionId, answer, updatedAt: now, updatedBy: 'admin' });
+        return next;
+      });
+      setToastMsg(`Bonus answer saved (${data.leaguesUpdated} leagues updated)`);
+      setToastOpen(true);
+    } catch (e: unknown) {
+      setToastMsg(e instanceof Error ? e.message : 'Save failed');
+      setToastOpen(true);
+    } finally {
+      setBonusSaving((prev) => ({ ...prev, [questionId]: false }));
+    }
+  }
 
   const totalResults = results.size;
   const groupResults = [...results.values()].filter((r) =>
@@ -584,6 +626,59 @@ export default function AdminPanel({ existingResults }: AdminPanelProps) {
             </Card>
           );
         })}
+
+        {/* ── Section 3: Bonus Answers ── */}
+        <Typography variant="h5" sx={{ fontWeight: 700, mt: 4, mb: 1 }}>
+          Bonus Question Answers
+        </Typography>
+        <Typography color="text.secondary" sx={{ mb: 2 }}>
+          Set the official answer for each bonus question. Saving triggers a full leaderboard recalculation across all leagues.
+        </Typography>
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {BONUS_QUESTIONS.map((q) => {
+            const stored = bonusAnswers.get(q.id);
+            const saving = bonusSaving[q.id] ?? false;
+            const draft = bonusDraft[q.id] ?? '';
+            const isDirty = draft.trim() !== (stored?.answer ?? '');
+
+            return (
+              <Card key={q.id} sx={{ border: '1px solid', borderColor: stored ? 'rgba(34,197,94,0.35)' : 'divider', bgcolor: stored ? 'rgba(34,197,94,0.04)' : 'transparent' }}>
+                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                    <Box sx={{ flex: 1, minWidth: 200 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{q.question}</Typography>
+                      {stored && (
+                        <Typography variant="caption" color="text.secondary">
+                          Set by {stored.updatedBy} · {new Date(stored.updatedAt).toLocaleDateString()}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Chip label={`${q.points} pts`} size="small" sx={{ background: 'rgba(201,167,58,0.15)', color: '#C9A73A', fontWeight: 700 }} />
+                    <TextField
+                      size="small"
+                      label="Official answer"
+                      value={draft}
+                      onChange={(e) => setBonusDraft((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                      placeholder={q.type === 'number' ? 'e.g. 163' : q.type === 'team' ? 'e.g. ARG' : 'e.g. Mbappe'}
+                      sx={{ width: 180 }}
+                      type={q.type === 'number' ? 'number' : 'text'}
+                    />
+                    <Button
+                      variant="contained"
+                      size="small"
+                      disabled={!draft.trim() || !isDirty || saving}
+                      onClick={() => saveBonusAnswer(q.id)}
+                      sx={{ borderRadius: 2, minWidth: 80 }}
+                    >
+                      {saving ? <CircularProgress size={16} /> : stored ? 'Update' : 'Save'}
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Box>
       </Container>
 
       <Snackbar

@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../lib/auth';
 import { db } from '../../lib/db';
-import { GROUP_FIXTURES } from '../../data/fifa-2026';
+import { ALL_FIXTURES } from '../../data/fifa-2026';
 import type { Phase } from '../../data/fifa-2026';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!isMember) return res.status(403).json({ error: 'Not a league member' });
 
   // Get match numbers for the requested phase
-  const phaseMatchNumbers = GROUP_FIXTURES
+  const phaseMatchNumbers = ALL_FIXTURES
     .filter((f) => f.phase === (phase as Phase))
     .map((f) => f.matchNumber);
 
