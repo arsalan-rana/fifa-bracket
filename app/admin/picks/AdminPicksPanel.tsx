@@ -19,7 +19,11 @@ import Alert from '@mui/material/Alert';
 import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import ToggleButton from '@mui/material/ToggleButton';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import GroupWorkIcon from '@mui/icons-material/GroupWork';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
@@ -217,6 +221,7 @@ function MatchCard({
 export default function AdminPicksPanel({ leagues }: { leagues: League[] }) {
   const [leagueId, setLeagueId] = useState(leagues[0]?.id ?? '');
   const [phase, setPhase] = useState<Phase>('group');
+  const [groupBy, setGroupBy] = useState<'group' | 'date'>('group');
   const [data, setData] = useState<PicksData | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -332,13 +337,35 @@ export default function AdminPicksPanel({ leagues }: { leagues: League[] }) {
                 })}
               </Tabs>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {phaseConfig?.icon} <strong>{PHASE_LABEL[phase]}</strong>
-                {' — '}{submittedForPhase.size}/{totalMembers} members submitted picks
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                <Typography variant="body2" color="text.secondary">
+                  {phaseConfig?.icon} <strong>{PHASE_LABEL[phase]}</strong>
+                  {' — '}{submittedForPhase.size}/{totalMembers} members submitted picks
+                </Typography>
 
-              {/* Group stage: accordion per group */}
-              {phase === 'group' ? (
+                {/* Group-by toggle — only on group stage */}
+                {phase === 'group' && (
+                  <ToggleButtonGroup
+                    value={groupBy}
+                    exclusive
+                    onChange={(_, v) => { if (v) setGroupBy(v); }}
+                    size="small"
+                    sx={{ ml: 'auto' }}
+                  >
+                    <ToggleButton value="group" sx={{ px: 1.5, gap: 0.5, fontSize: '0.75rem' }}>
+                      <GroupWorkIcon sx={{ fontSize: '0.9rem' }} />
+                      By Group
+                    </ToggleButton>
+                    <ToggleButton value="date" sx={{ px: 1.5, gap: 0.5, fontSize: '0.75rem' }}>
+                      <CalendarTodayIcon sx={{ fontSize: '0.9rem' }} />
+                      By Date
+                    </ToggleButton>
+                  </ToggleButtonGroup>
+                )}
+              </Box>
+
+              {/* Group stage: accordion per group OR flat list by date */}
+              {phase === 'group' && groupBy === 'group' ? (
                 GROUPS.map((group) => {
                   const groupFixtures = phaseFixtures.filter((f) => f.group === group);
                   const teams = [...new Set(groupFixtures.flatMap((f) => [f.team1, f.team2]))];
@@ -380,6 +407,37 @@ export default function AdminPicksPanel({ leagues }: { leagues: League[] }) {
                     </Accordion>
                   );
                 })
+              ) : phase === 'group' && groupBy === 'date' ? (
+                (() => {
+                  const sorted = [...phaseFixtures].sort(
+                    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+                  );
+                  const byDay = new Map<string, typeof sorted>();
+                  for (const f of sorted) {
+                    const day = new Date(f.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                    if (!byDay.has(day)) byDay.set(day, []);
+                    byDay.get(day)!.push(f);
+                  }
+                  return Array.from(byDay.entries()).map(([day, fixtures]) => (
+                    <Box key={day} sx={{ mb: 2 }}>
+                      <Typography
+                        variant="caption"
+                        sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1, px: 0.5 }}
+                      >
+                        {day}
+                      </Typography>
+                      {fixtures.map((f) => (
+                        <MatchCard
+                          key={f.matchNumber}
+                          fixture={f}
+                          members={data.members}
+                          predictions={data.predictions}
+                          result={resultMap.get(f.matchNumber)}
+                        />
+                      ))}
+                    </Box>
+                  ));
+                })()
               ) : (
                 /* Knockout: flat list */
                 phaseFixtures.map((f) => (
