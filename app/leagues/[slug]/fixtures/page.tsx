@@ -20,6 +20,8 @@ import ChatBubbleOutlinedIcon from '@mui/icons-material/ChatBubbleOutlined';
 import PeopleIcon from '@mui/icons-material/People';
 import SendIcon from '@mui/icons-material/Send';
 import EventNoteIcon from '@mui/icons-material/EventNote';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
+import SportsScoreIcon from '@mui/icons-material/SportsScore';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import ToggleButton from '@mui/material/ToggleButton';
 import GroupWorkIcon from '@mui/icons-material/GroupWork';
@@ -49,6 +51,12 @@ interface Comment {
 
 type Picker = { name: string; image: string | null; email: string };
 type Picks = Record<number, Record<string, Picker[]>>;
+
+interface MyPrediction {
+  predictedWinner: string;
+  goals1: number | null;
+  goals2: number | null;
+}
 
 const PHASE_LABELS: Record<Phase, string> = {
   group: 'Group Stage',
@@ -311,6 +319,81 @@ function CommentThread({
   );
 }
 
+// ─── Score Input ──────────────────────────────────────────────────────────────
+
+function ScoreInput({
+  fixture,
+  leagueId,
+  initialGoals1,
+  initialGoals2,
+  onSaved,
+}: {
+  fixture: Fixture;
+  leagueId: string;
+  initialGoals1: number | null;
+  initialGoals2: number | null;
+  onSaved: (g1: number, g2: number) => void;
+}) {
+  const [g1, setG1] = useState<string>(initialGoals1 !== null ? String(initialGoals1) : '');
+  const [g2, setG2] = useState<string>(initialGoals2 !== null ? String(initialGoals2) : '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    const n1 = parseInt(g1);
+    const n2 = parseInt(g2);
+    if (isNaN(n1) || isNaN(n2) || g1 === '' || g2 === '' || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/submit-score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId, matchNumber: fixture.matchNumber, goals1: n1, goals2: n2 }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        onSaved(n1, n2);
+        setTimeout(() => setSaved(false), 2500);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputSx = {
+    width: 44,
+    '& input': { textAlign: 'center', px: 0.5, py: 0.5, fontSize: '0.8rem', MozAppearance: 'textfield' },
+    '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': { display: 'none' },
+  };
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.5, pb: 1, pl: 9 }}>
+      <SportsScoreIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+      <Typography variant="caption" color="text.secondary" sx={{ mr: 0.25 }}>Score:</Typography>
+      <TextField
+        size="small"
+        type="number"
+        value={g1}
+        onChange={(e) => setG1(e.target.value.slice(0, 2))}
+        onBlur={() => { if (g1 !== '' && g2 !== '') save(); }}
+        slotProps={{ htmlInput: { min: 0, max: 20 } }}
+        sx={inputSx}
+      />
+      <Typography variant="caption" color="text.secondary">–</Typography>
+      <TextField
+        size="small"
+        type="number"
+        value={g2}
+        onChange={(e) => setG2(e.target.value.slice(0, 2))}
+        onBlur={() => { if (g1 !== '' && g2 !== '') save(); }}
+        slotProps={{ htmlInput: { min: 0, max: 20 } }}
+        sx={inputSx}
+      />
+      {saved && <CheckCircleOutlineIcon sx={{ fontSize: 14, color: 'success.main' }} />}
+    </Box>
+  );
+}
+
 // ─── Match Row ────────────────────────────────────────────────────────────────
 
 interface MatchRowProps {
@@ -322,9 +405,11 @@ interface MatchRowProps {
   comments: Comment[];
   picksForMatch: Record<string, Picker[]>;
   leagueId: string;
+  myPrediction: MyPrediction | null;
   onToggleComments: () => void;
   onTogglePicks: () => void;
   onNewComment: (c: Comment) => void;
+  onScoreSaved: (g1: number, g2: number) => void;
 }
 
 function MatchRow({
@@ -336,13 +421,16 @@ function MatchRow({
   comments,
   picksForMatch,
   leagueId,
+  myPrediction,
   onToggleComments,
   onTogglePicks,
   onNewComment,
+  onScoreSaved,
 }: MatchRowProps) {
   const totalPicks = Object.values(picksForMatch).reduce((s, a) => s + a.length, 0);
   const isAnyOpen = commentsOpen || picksOpen;
   const rowRef = useRef<HTMLDivElement>(null);
+  const kickedOff = new Date(fixture.date) <= new Date();
 
   // When a panel opens, wait for Collapse animation then scroll the row to a sensible position
   useEffect(() => {
@@ -434,6 +522,38 @@ function MatchRow({
         </Box>
       </Box>
 
+      {/* My winner badge — shown when match has started and pick exists */}
+      {kickedOff && myPrediction && (
+        <Box sx={{ px: 0.5, pb: 0.75, pl: 9, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Typography variant="caption" color="text.disabled">Your pick:</Typography>
+          <Chip
+            size="small"
+            label={
+              myPrediction.predictedWinner === 'DRAW'
+                ? '🤝 Draw'
+                : `${TEAMS[myPrediction.predictedWinner]?.flag ?? ''} ${TEAMS[myPrediction.predictedWinner]?.name ?? myPrediction.predictedWinner}`
+            }
+            sx={{ height: 18, fontSize: '0.65rem', fontWeight: 600 }}
+          />
+          {myPrediction.goals1 !== null && myPrediction.goals2 !== null && (
+            <Typography variant="caption" color="secondary.main" sx={{ fontWeight: 700 }}>
+              {myPrediction.goals1}–{myPrediction.goals2}
+            </Typography>
+          )}
+        </Box>
+      )}
+
+      {/* Score input — only when match hasn't kicked off and winner is picked */}
+      {!kickedOff && myPrediction && (
+        <ScoreInput
+          fixture={fixture}
+          leagueId={leagueId}
+          initialGoals1={myPrediction.goals1}
+          initialGoals2={myPrediction.goals2}
+          onSaved={onScoreSaved}
+        />
+      )}
+
       {/* Picks panel */}
       {isPastDeadline && (
         <Collapse in={picksOpen} unmountOnExit>
@@ -461,6 +581,7 @@ export default function FixturesPage({ params }: Props) {
   const [leagueId, setLeagueId] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
   const [picks, setPicks] = useState<Picks>({});
+  const [myPreds, setMyPreds] = useState<Record<number, MyPrediction>>({});
   const [openComments, setOpenComments] = useState<Set<number>>(new Set());
   const [openPicks, setOpenPicks] = useState<Set<number>>(new Set());
   const [groupBy, setGroupBy] = useState<'group' | 'date'>('group');
@@ -472,12 +593,21 @@ export default function FixturesPage({ params }: Props) {
       const { id } = await leagueRes.json();
       setLeagueId(id);
 
-      const [cRes, pRes] = await Promise.all([
+      const [cRes, pRes, myRes] = await Promise.all([
         fetch(`/api/match-comments?leagueId=${id}`),
         fetch(`/api/match-picks?leagueId=${id}`),
+        fetch(`/api/get-predictions?leagueId=${id}`),
       ]);
       if (cRes.ok) setComments((await cRes.json()).comments);
       if (pRes.ok) setPicks((await pRes.json()).picks);
+      if (myRes.ok) {
+        const { predictions } = await myRes.json();
+        const map: Record<number, MyPrediction> = {};
+        for (const p of predictions) {
+          map[p.matchNumber] = { predictedWinner: p.predictedWinner, goals1: p.goals1 ?? null, goals2: p.goals2 ?? null };
+        }
+        setMyPreds(map);
+      }
     }
     load();
   }, [slug]);
@@ -550,9 +680,16 @@ export default function FixturesPage({ params }: Props) {
         comments={commentsFor(fixture.matchNumber)}
         picksForMatch={picks[fixture.matchNumber] ?? {}}
         leagueId={leagueId}
+        myPrediction={myPreds[fixture.matchNumber] ?? null}
         onToggleComments={() => toggleComments(fixture.matchNumber)}
         onTogglePicks={() => togglePicks(fixture.matchNumber)}
         onNewComment={addComment}
+        onScoreSaved={(g1, g2) =>
+          setMyPreds((prev) => ({
+            ...prev,
+            [fixture.matchNumber]: { ...prev[fixture.matchNumber]!, goals1: g1, goals2: g2 },
+          }))
+        }
       />
     );
   }

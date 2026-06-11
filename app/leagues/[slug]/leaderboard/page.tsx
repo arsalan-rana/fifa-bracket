@@ -10,6 +10,7 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import Collapse from '@mui/material/Collapse';
 import Avatar from '@mui/material/Avatar';
 import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
@@ -21,6 +22,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import RemoveIcon from '@mui/icons-material/Remove';
 import CloseIcon from '@mui/icons-material/Close';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useSession } from 'next-auth/react';
 
 interface Props {
@@ -38,6 +40,7 @@ interface LeaderboardEntry {
   semiPoints: number;
   finalPoints: number;
   bonusPoints: number;
+  scorePoints: number;
   penalty: number;
   user: { name: string | null; email: string; image: string | null };
 }
@@ -72,6 +75,7 @@ export default function LeaderboardPage({ params }: Props) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [leagueId, setLeagueId] = useState('');
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   // taunts keyed by toUserId
   // taunts keyed by toUser email
   const [taunts, setTaunts] = useState<Record<string, TauntInfo[]>>({});
@@ -172,10 +176,7 @@ export default function LeaderboardPage({ params }: Props) {
                   <TableCell sx={{ fontWeight: 700, width: 50 }}>Rank</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Player</TableCell>
                   <TableCell sx={{ fontWeight: 700, textAlign: 'right' }}>Total</TableCell>
-                  <TableCell sx={{ fontWeight: 700, textAlign: 'right', display: { xs: 'none', sm: 'table-cell' } }}>Groups</TableCell>
-                  <TableCell sx={{ fontWeight: 700, textAlign: 'right', display: { xs: 'none', md: 'table-cell' } }}>Knockouts</TableCell>
-                  <TableCell sx={{ fontWeight: 700, textAlign: 'right', display: { xs: 'none', sm: 'table-cell' } }}>Bonus</TableCell>
-                  <TableCell sx={{ fontWeight: 700, textAlign: 'right', display: { xs: 'none', md: 'table-cell' } }}>Penalty</TableCell>
+                  <TableCell sx={{ width: 36 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -188,72 +189,114 @@ export default function LeaderboardPage({ params }: Props) {
                     entry.semiPoints +
                     entry.finalPoints;
                   const receivedTaunts = taunts[entry.user.email] ?? [];
+                  const isExpanded = expandedRows.has(entry.user.email);
+
+                  function toggleExpand() {
+                    setExpandedRows((prev) => {
+                      const next = new Set(prev);
+                      next.has(entry.user.email) ? next.delete(entry.user.email) : next.add(entry.user.email);
+                      return next;
+                    });
+                  }
 
                   return (
-                    <TableRow
-                      key={entry.user.email}
-                      sx={{
-                        background: isMe ? 'rgba(0,61,165,0.1)' : 'transparent',
-                        '&:hover': { background: 'rgba(255,255,255,0.03)' },
-                      }}
-                    >
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Typography sx={{ fontWeight: 800 }} color={idx === 0 ? 'secondary.main' : 'text.primary'}>
-                            {idx < 3 ? medals[idx] : idx + 1}
-                          </Typography>
-                          <RankDelta rank={entry.rank} prevRank={entry.prevRank} />
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Avatar src={entry.user.image ?? undefined} sx={{ width: 30, height: 30, flexShrink: 0 }} />
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography variant="body2" sx={{ fontWeight: isMe ? 700 : 400 }}>
-                              {entry.user.name ?? entry.user.email}
-                              {isMe && (
-                                <Chip label="you" size="small" sx={{ ml: 1, height: 16, fontSize: '0.6rem' }} />
-                              )}
+                    <>
+                      <TableRow
+                        key={entry.user.email}
+                        sx={{
+                          background: isMe ? 'rgba(0,61,165,0.1)' : 'transparent',
+                          '&:hover': { background: isMe ? 'rgba(0,61,165,0.15)' : 'rgba(255,255,255,0.03)' },
+                          cursor: 'pointer',
+                        }}
+                        onClick={toggleExpand}
+                      >
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Typography sx={{ fontWeight: 800 }} color={idx === 0 ? 'secondary.main' : 'text.primary'}>
+                              {idx < 3 ? medals[idx] : idx + 1}
                             </Typography>
-                            {receivedTaunts.map((t, i) => (
-                              <Typography key={i} variant="caption" color="text.disabled" sx={{ lineHeight: 1.3, display: 'block' }}>
-                                {t.emoji} {t.label}{!t.isSelf && ` · from ${t.fromName}`}
-                              </Typography>
-                            ))}
+                            <RankDelta rank={entry.rank} prevRank={entry.prevRank} />
                           </Box>
-                          {session && (
-                            <Chip
-                              label={isMe ? '📣' : '⚡'}
-                              size="small"
-                              onClick={() => setTauntTarget({ email: entry.user.email, name: entry.user.name ?? entry.user.email.split('@')[0] })}
-                              title={isMe ? 'Set status' : 'Send a taunt'}
-                              sx={{ flexShrink: 0, cursor: 'pointer', fontSize: '0.75rem', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
-                            />
-                          )}
-                        </Box>
-                      </TableCell>
-                      <TableCell sx={{ textAlign: 'right' }}>
-                        <Typography sx={{ fontWeight: 800 }} color="secondary.main">
-                          {entry.totalPoints}
-                        </Typography>
-                      </TableCell>
-                      <TableCell sx={{ textAlign: 'right', display: { xs: 'none', sm: 'table-cell' } }}>
-                        {entry.groupPoints}
-                      </TableCell>
-                      <TableCell sx={{ textAlign: 'right', display: { xs: 'none', md: 'table-cell' } }}>
-                        {knockoutPts}
-                      </TableCell>
-                      <TableCell sx={{ textAlign: 'right', display: { xs: 'none', sm: 'table-cell' } }}>
-                        {entry.bonusPoints > 0 && (
-                          <Typography color="success.main">+{entry.bonusPoints}</Typography>
-                        )}
-                      </TableCell>
-                      <TableCell sx={{ textAlign: 'right', display: { xs: 'none', md: 'table-cell' } }}>
-                        {entry.penalty > 0 && (
-                          <Typography color="error.main">-{entry.penalty}</Typography>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Avatar src={entry.user.image ?? undefined} sx={{ width: 30, height: 30, flexShrink: 0 }} />
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="body2" sx={{ fontWeight: isMe ? 700 : 400 }}>
+                                {entry.user.name ?? entry.user.email}
+                                {isMe && (
+                                  <Chip label="you" size="small" sx={{ ml: 1, height: 16, fontSize: '0.6rem' }} />
+                                )}
+                              </Typography>
+                              {receivedTaunts.map((t, i) => (
+                                <Typography key={i} variant="caption" color="text.disabled" sx={{ lineHeight: 1.3, display: 'block' }}>
+                                  {t.emoji} {t.label}{!t.isSelf && ` · from ${t.fromName}`}
+                                </Typography>
+                              ))}
+                            </Box>
+                            {session && (
+                              <Chip
+                                label={isMe ? '📣' : '⚡'}
+                                size="small"
+                                onClick={(e) => { e.stopPropagation(); setTauntTarget({ email: entry.user.email, name: entry.user.name ?? entry.user.email.split('@')[0] }); }}
+                                title={isMe ? 'Set status' : 'Send a taunt'}
+                                sx={{ flexShrink: 0, cursor: 'pointer', fontSize: '0.75rem', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
+                              />
+                            )}
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ textAlign: 'right' }}>
+                          <Typography sx={{ fontWeight: 800 }} color="secondary.main">
+                            {entry.totalPoints}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ textAlign: 'center', p: 0.5 }}>
+                          <ExpandMoreIcon
+                            sx={{
+                              fontSize: 18,
+                              color: 'text.disabled',
+                              transition: 'transform 0.2s',
+                              transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            }}
+                          />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow key={`${entry.user.email}-detail`} sx={{ background: 'transparent' }}>
+                        <TableCell colSpan={4} sx={{ p: 0, border: 0 }}>
+                          <Collapse in={isExpanded} unmountOnExit>
+                            <Box
+                              sx={{
+                                px: 3,
+                                py: 1.5,
+                                bgcolor: isMe ? 'rgba(0,61,165,0.07)' : 'rgba(255,255,255,0.02)',
+                                borderBottom: '1px solid',
+                                borderColor: 'divider',
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: 2,
+                              }}
+                            >
+                              {[
+                                { label: 'Groups', value: entry.groupPoints },
+                                { label: 'Knockouts', value: knockoutPts },
+                                { label: 'Scores', value: entry.scorePoints ?? 0, color: entry.scorePoints > 0 ? 'secondary.main' : undefined },
+                                { label: 'Bonus', value: entry.bonusPoints, color: entry.bonusPoints > 0 ? 'success.main' : undefined },
+                                { label: 'Penalty', value: -entry.penalty, color: entry.penalty > 0 ? 'error.main' : undefined, prefix: entry.penalty > 0 ? '' : undefined },
+                              ].map(({ label, value, color }) => (
+                                <Box key={label} sx={{ textAlign: 'center', minWidth: 56 }}>
+                                  <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                    {label}
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }} color={color ?? 'text.primary'}>
+                                    {value > 0 && label !== 'Penalty' ? `+${value}` : value}
+                                  </Typography>
+                                </Box>
+                              ))}
+                            </Box>
+                          </Collapse>
+                        </TableCell>
+                      </TableRow>
+                    </>
                   );
                 })}
               </TableBody>

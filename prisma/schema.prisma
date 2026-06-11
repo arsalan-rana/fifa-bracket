@@ -103,6 +103,8 @@ model Prediction {
   predictedWinner String
   submittedAt     DateTime @default(now())
   isLate          Boolean  @default(false)
+  goals1          Int?
+  goals2          Int?
 
   @@unique([userId, leagueId, matchNumber])
 }
@@ -168,6 +170,7 @@ model LeaderboardEntry {
   semiPoints    Int      @default(0)
   finalPoints   Int      @default(0)
   bonusPoints   Int      @default(0)
+  scorePoints   Int      @default(0)
   penalty       Int      @default(0)
   updatedAt     DateTime @default(now())
 

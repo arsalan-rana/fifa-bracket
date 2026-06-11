@@ -14,6 +14,11 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
 
   const results = fixtureResults.map((r) => ({ matchNumber: r.matchNumber, result: r.result }));
   const bonusAnswersMapped = bonusAnswers.map((a) => ({ questionId: a.questionId, answer: a.answer }));
+  const scoreResultsMap = new Map(
+    fixtureResults
+      .filter((r) => r.goals1 !== null && r.goals2 !== null)
+      .map((r) => [r.matchNumber, { goals1: r.goals1!, goals2: r.goals2! }])
+  );
 
   // Pre-compute closest-answer winners for number-type bonus questions
   const closestWinners = computeClosestWinners(
@@ -74,6 +79,12 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
       closestWinners,
     );
 
+    const scorePoints = userPredictions.reduce((sum, p) => {
+      const result = scoreResultsMap.get(p.matchNumber);
+      if (!result || p.goals1 === null || p.goals2 === null) return sum;
+      return sum + (p.goals1 === result.goals1 && p.goals2 === result.goals2 ? 15 : 0);
+    }, 0);
+
     const penalty = userPredictions.filter((p) => p.isLate).length * TOURNAMENT.scoring.latePenaltyPerDay;
 
     const totalPoints =
@@ -83,7 +94,8 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
       (knockoutPoints.quarter ?? 0) +
       (knockoutPoints.semi ?? 0) +
       (knockoutPoints.final ?? 0) +
-      bonusPoints -
+      bonusPoints +
+      scorePoints -
       penalty;
 
     return {
@@ -96,6 +108,7 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
       semiPoints: knockoutPoints.semi ?? 0,
       finalPoints: knockoutPoints.final ?? 0,
       bonusPoints,
+      scorePoints,
       penalty,
     };
   });
@@ -141,6 +154,7 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
           semiPoints: entry.semiPoints,
           finalPoints: entry.finalPoints,
           bonusPoints: entry.bonusPoints,
+          scorePoints: entry.scorePoints,
           penalty: entry.penalty,
           updatedAt: new Date(),
         },
@@ -157,6 +171,7 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
           semiPoints: entry.semiPoints,
           finalPoints: entry.finalPoints,
           bonusPoints: entry.bonusPoints,
+          scorePoints: entry.scorePoints,
           penalty: entry.penalty,
         },
       })
