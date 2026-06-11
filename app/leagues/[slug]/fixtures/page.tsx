@@ -522,7 +522,9 @@ export default function FixturesPage({ params }: Props) {
   }
 
   function renderMatchRow(fixture: Fixture) {
-    const matchStarted = new Date(fixture.date) <= new Date();
+    const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const matchDayET = new Date(fixture.date).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const matchStarted = matchDayET <= todayET;
     return (
       <MatchRow
         key={fixture.matchNumber}
