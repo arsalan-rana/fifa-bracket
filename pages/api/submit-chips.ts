@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../lib/auth';
 import { db } from '../../lib/db';
-import { getFixture, getPhaseConfig, isPhaseOpen } from '../../data/fifa-2026';
+import { getFixture, getPhaseConfig } from '../../data/fifa-2026';
 import type { Phase } from '../../data/fifa-2026';
 
 interface ChipPayload {
@@ -47,11 +47,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!fixture) return res.status(400).json({ error: 'Invalid match number' });
 
   const fixturePhase = fixture.phase;
-
-  // After the phase deadline only wildcard is allowed (its purpose is to protect late picks)
-  if (!isPhaseOpen(fixturePhase) && chipType !== 'wildcard') {
-    return res.status(400).json({ error: 'Phase deadline passed — only wildcard can be applied now' });
-  }
 
   const allowed = CHIPS_PER_PHASE[fixturePhase] ?? [];
   if (!allowed.includes(chipType)) {
