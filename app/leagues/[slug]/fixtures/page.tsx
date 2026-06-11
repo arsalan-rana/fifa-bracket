@@ -522,7 +522,7 @@ export default function FixturesPage({ params }: Props) {
   }
 
   function renderMatchRow(fixture: Fixture) {
-    const deadline = isPhasePastDeadline(fixture.phase);
+    const matchStarted = new Date(fixture.date) <= new Date();
     return (
       <MatchRow
         key={fixture.matchNumber}
@@ -542,7 +542,7 @@ export default function FixturesPage({ params }: Props) {
             </Typography>
           )
         }
-        isPastDeadline={deadline}
+        isPastDeadline={matchStarted}
         commentsOpen={openComments.has(fixture.matchNumber)}
         picksOpen={openPicks.has(fixture.matchNumber)}
         comments={commentsFor(fixture.matchNumber)}
