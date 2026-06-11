@@ -20,6 +20,10 @@ import ChatBubbleOutlinedIcon from '@mui/icons-material/ChatBubbleOutlined';
 import PeopleIcon from '@mui/icons-material/People';
 import SendIcon from '@mui/icons-material/Send';
 import EventNoteIcon from '@mui/icons-material/EventNote';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import ToggleButton from '@mui/material/ToggleButton';
+import GroupWorkIcon from '@mui/icons-material/GroupWork';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import { useSession } from 'next-auth/react';
 import {
   GROUPS,
@@ -454,6 +458,7 @@ export default function FixturesPage({ params }: Props) {
   const [picks, setPicks] = useState<Picks>({});
   const [openComments, setOpenComments] = useState<Set<number>>(new Set());
   const [openPicks, setOpenPicks] = useState<Set<number>>(new Set());
+  const [groupBy, setGroupBy] = useState<'group' | 'date'>('group');
 
   useEffect(() => {
     async function load() {
@@ -498,6 +503,18 @@ export default function FixturesPage({ params }: Props) {
   }
 
   const groupDeadlinePassed = isPhasePastDeadline('group');
+
+  function getGroupMatchesByDate(): { dayLabel: string; fixtures: Fixture[] }[] {
+    const sorted = [...GROUP_FIXTURES].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const groups: Map<string, Fixture[]> = new Map();
+    for (const f of sorted) {
+      const d = new Date(f.date);
+      const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label)!.push(f);
+    }
+    return [...groups.entries()].map(([dayLabel, fixtures]) => ({ dayLabel, fixtures }));
+  }
 
   function renderMatchRow(fixture: Fixture) {
     const deadline = isPhasePastDeadline(fixture.phase);
@@ -560,67 +577,96 @@ export default function FixturesPage({ params }: Props) {
         </Box>
 
         {/* Group Stage */}
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>
-          Group Stage — 72 Matches
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>Group Stage — 72 Matches</Typography>
+          <ToggleButtonGroup
+            value={groupBy}
+            exclusive
+            onChange={(_, v) => { if (v) setGroupBy(v); }}
+            size="small"
+          >
+            <ToggleButton value="group" sx={{ gap: 0.5, px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
+              <GroupWorkIcon sx={{ fontSize: 15 }} /> By Group
+            </ToggleButton>
+            <ToggleButton value="date" sx={{ gap: 0.5, px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
+              <CalendarTodayIcon sx={{ fontSize: 15 }} /> By Date
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
 
-        {GROUPS.map((group) => {
-          const fixtures = GROUP_FIXTURES.filter((f) => f.group === group);
-          const teams = [...new Set(fixtures.flatMap((f) => [f.team1, f.team2]))].map((c) => TEAMS[c]);
-          const groupCommentCount = fixtures.reduce((sum, f) => sum + commentsFor(f.matchNumber).length, 0);
-          const groupPicksCount = fixtures.reduce(
-            (sum, f) =>
-              sum + Object.values(picks[f.matchNumber] ?? {}).reduce((s, a) => s + a.length, 0),
-            0,
-          );
+        {groupBy === 'group' ? (
+          GROUPS.map((group) => {
+            const fixtures = GROUP_FIXTURES.filter((f) => f.group === group);
+            const teams = [...new Set(fixtures.flatMap((f) => [f.team1, f.team2]))].map((c) => TEAMS[c]);
+            const groupCommentCount = fixtures.reduce((sum, f) => sum + commentsFor(f.matchNumber).length, 0);
+            const groupPicksCount = fixtures.reduce(
+              (sum, f) =>
+                sum + Object.values(picks[f.matchNumber] ?? {}).reduce((s, a) => s + a.length, 0),
+              0,
+            );
 
-          return (
-            <Accordion
-              key={group}
-              sx={{
-                bgcolor: 'background.paper',
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 2,
-                mb: 1,
-                '&:before': { display: 'none' },
-              }}
-            >
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%', pr: 1 }}>
-                  <Typography sx={{ fontWeight: 800 }}>Group {group}</Typography>
-                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flex: 1 }}>
-                    {teams.map((t) => t && (
-                      <Chip
-                        key={t.code}
-                        label={`${t.flag} ${t.code}`}
-                        size="small"
-                        sx={{ fontSize: '0.65rem', height: 18, background: `${t.primaryColor}22`, color: 'text.primary' }}
-                      />
-                    ))}
+            return (
+              <Accordion
+                key={group}
+                sx={{
+                  bgcolor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                  mb: 1,
+                  '&:before': { display: 'none' },
+                }}
+              >
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%', pr: 1 }}>
+                    <Typography sx={{ fontWeight: 800 }}>Group {group}</Typography>
+                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flex: 1 }}>
+                      {teams.map((t) => t && (
+                        <Chip
+                          key={t.code}
+                          label={`${t.flag} ${t.code}`}
+                          size="small"
+                          sx={{ fontSize: '0.65rem', height: 18, background: `${t.primaryColor}22`, color: 'text.primary' }}
+                        />
+                      ))}
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexShrink: 0 }}>
+                      {groupDeadlinePassed && groupPicksCount > 0 && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'text.disabled' }}>
+                          <PeopleIcon sx={{ fontSize: 13 }} />
+                          <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>{groupPicksCount}</Typography>
+                        </Box>
+                      )}
+                      {groupCommentCount > 0 && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'text.disabled' }}>
+                          <ChatBubbleOutlinedIcon sx={{ fontSize: 13 }} />
+                          <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>{groupCommentCount}</Typography>
+                        </Box>
+                      )}
+                    </Box>
                   </Box>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexShrink: 0 }}>
-                    {groupDeadlinePassed && groupPicksCount > 0 && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'text.disabled' }}>
-                        <PeopleIcon sx={{ fontSize: 13 }} />
-                        <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>{groupPicksCount}</Typography>
-                      </Box>
-                    )}
-                    {groupCommentCount > 0 && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'text.disabled' }}>
-                        <ChatBubbleOutlinedIcon sx={{ fontSize: 13 }} />
-                        <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>{groupCommentCount}</Typography>
-                      </Box>
-                    )}
-                  </Box>
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails sx={{ pt: 0, px: 1 }}>
+                </AccordionSummary>
+                <AccordionDetails sx={{ pt: 0, px: 1 }}>
+                  {fixtures.map((f) => renderMatchRow(f))}
+                </AccordionDetails>
+              </Accordion>
+            );
+          })
+        ) : (
+          getGroupMatchesByDate().map(({ dayLabel, fixtures }) => (
+            <Card key={dayLabel} sx={{ mb: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+              <CardContent sx={{ pb: '12px !important' }}>
+                <Typography
+                  variant="caption"
+                  sx={{ display: 'block', fontWeight: 700, mb: 1, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: 0.5 }}
+                >
+                  {dayLabel} · {fixtures.length} match{fixtures.length !== 1 ? 'es' : ''}
+                </Typography>
                 {fixtures.map((f) => renderMatchRow(f))}
-              </AccordionDetails>
-            </Accordion>
-          );
-        })}
+              </CardContent>
+            </Card>
+          ))
+        )}
 
         {/* Knockout stages */}
         <Typography variant="h5" sx={{ fontWeight: 700, mt: 4, mb: 2 }}>

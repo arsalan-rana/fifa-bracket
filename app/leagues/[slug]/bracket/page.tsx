@@ -26,6 +26,10 @@ import Snackbar from '@mui/material/Snackbar';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import Paper from '@mui/material/Paper';
 import LinearProgress from '@mui/material/LinearProgress';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import ToggleButton from '@mui/material/ToggleButton';
+import GroupWorkIcon from '@mui/icons-material/GroupWork';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import TeamInfoDrawer from '../../../components/TeamInfoDrawer';
 import {
   GROUPS,
@@ -400,6 +404,7 @@ export default function BracketPage({ params }: Props) {
   const [isVerified, setIsVerified] = useState(true);
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
   const [expanded, setExpanded] = useState<string>('group-A');
+  const [groupBy, setGroupBy] = useState<'group' | 'date'>('group');
   const [leaguePicks, setLeaguePicks] = useState<Record<number, Record<string, number>>>({});
   const [leagueMemberCount, setLeagueMemberCount] = useState(1);
   const [teamDrawer, setTeamDrawer] = useState<string | null>(null);
@@ -470,6 +475,18 @@ export default function BracketPage({ params }: Props) {
 
   function getGroupFixtures(group: string): Fixture[] {
     return GROUP_FIXTURES.filter((f) => f.group === group);
+  }
+
+  function getMatchesByDate(): { dayLabel: string; fixtures: Fixture[] }[] {
+    const sorted = [...GROUP_FIXTURES].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const groups: Map<string, Fixture[]> = new Map();
+    for (const f of sorted) {
+      const d = new Date(f.date);
+      const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label)!.push(f);
+    }
+    return [...groups.entries()].map(([dayLabel, fixtures]) => ({ dayLabel, fixtures }));
   }
 
   function groupCompletionCount(group: string): number {
@@ -767,69 +784,114 @@ export default function BracketPage({ params }: Props) {
         </Box>
 
         {/* Groups */}
-        {GROUPS.map((group) => {
-          const fixtures = getGroupFixtures(group);
-          const done = groupCompletionCount(group);
-          const teams = [...new Set(fixtures.flatMap((f) => [f.team1, f.team2]))].map((c) => TEAMS[c]);
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>Group Stage</Typography>
+          <ToggleButtonGroup
+            value={groupBy}
+            exclusive
+            onChange={(_, v) => { if (v) setGroupBy(v); }}
+            size="small"
+          >
+            <ToggleButton value="group" sx={{ gap: 0.5, px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
+              <GroupWorkIcon sx={{ fontSize: 15 }} /> By Group
+            </ToggleButton>
+            <ToggleButton value="date" sx={{ gap: 0.5, px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
+              <CalendarTodayIcon sx={{ fontSize: 15 }} /> By Date
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
 
-          return (
-            <Accordion
-              key={group}
-              expanded={expanded === `group-${group}`}
-              onChange={(_, isExpanded) => setExpanded(isExpanded ? `group-${group}` : '')}
-              sx={{
-                bgcolor: 'background.paper',
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 2,
-                mb: 1.5,
-                '&:before': { display: 'none' },
-              }}
-            >
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-                  <Typography sx={{ fontWeight: 800, minWidth: 80 }}>Group {group}</Typography>
-                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flexGrow: 1 }}>
-                    {teams.map(
-                      (t) =>
-                        t && (
-                          <Chip
-                            key={t.code}
-                            label={`${t.flag} ${t.code}`}
-                            size="small"
-                            sx={{ fontSize: '0.7rem', height: 20, background: `${t.primaryColor}33`, color: 'text.primary' }}
-                          />
-                        ),
-                    )}
+        {groupBy === 'group' ? (
+          GROUPS.map((group) => {
+            const fixtures = getGroupFixtures(group);
+            const done = groupCompletionCount(group);
+            const teams = [...new Set(fixtures.flatMap((f) => [f.team1, f.team2]))].map((c) => TEAMS[c]);
+
+            return (
+              <Accordion
+                key={group}
+                expanded={expanded === `group-${group}`}
+                onChange={(_, isExpanded) => setExpanded(isExpanded ? `group-${group}` : '')}
+                sx={{
+                  bgcolor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                  mb: 1.5,
+                  '&:before': { display: 'none' },
+                }}
+              >
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
+                    <Typography sx={{ fontWeight: 800, minWidth: 80 }}>Group {group}</Typography>
+                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flexGrow: 1 }}>
+                      {teams.map(
+                        (t) =>
+                          t && (
+                            <Chip
+                              key={t.code}
+                              label={`${t.flag} ${t.code}`}
+                              size="small"
+                              sx={{ fontSize: '0.7rem', height: 20, background: `${t.primaryColor}33`, color: 'text.primary' }}
+                            />
+                          ),
+                      )}
+                    </Box>
+                    <Chip
+                      label={`${done}/${fixtures.length}`}
+                      size="small"
+                      color={done === fixtures.length ? 'success' : done > 0 ? 'warning' : 'default'}
+                      sx={{ minWidth: 50, fontWeight: 700 }}
+                    />
                   </Box>
-                  <Chip
-                    label={`${done}/${fixtures.length}`}
-                    size="small"
-                    color={done === fixtures.length ? 'success' : done > 0 ? 'warning' : 'default'}
-                    sx={{ minWidth: 50, fontWeight: 700 }}
-                  />
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails sx={{ pt: 0 }}>
-                {fixtures.map((fixture) => (
-                  <MatchCard
-                    key={fixture.matchNumber}
-                    fixture={fixture}
-                    selected={predictions[fixture.matchNumber]}
-                    onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
-                    disabled={false}
-                    chipActive={getChipForMatch(fixture.matchNumber)}
-                    chipMode={chipMode}
-                    onApplyChip={handleApplyChip}
-                    pickCounts={leaguePicks[fixture.matchNumber]}
-                    totalMembers={leagueMemberCount}
-                    onOpenTeamInfo={setTeamDrawer}
-                  />
-                ))}
-              </AccordionDetails>
-            </Accordion>
-          );
-        })}
+                </AccordionSummary>
+                <AccordionDetails sx={{ pt: 0 }}>
+                  {fixtures.map((fixture) => (
+                    <MatchCard
+                      key={fixture.matchNumber}
+                      fixture={fixture}
+                      selected={predictions[fixture.matchNumber]}
+                      onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
+                      disabled={false}
+                      chipActive={getChipForMatch(fixture.matchNumber)}
+                      chipMode={chipMode}
+                      onApplyChip={handleApplyChip}
+                      pickCounts={leaguePicks[fixture.matchNumber]}
+                      totalMembers={leagueMemberCount}
+                      onOpenTeamInfo={setTeamDrawer}
+                    />
+                  ))}
+                </AccordionDetails>
+              </Accordion>
+            );
+          })
+        ) : (
+          getMatchesByDate().map(({ dayLabel, fixtures }) => (
+            <Box key={dayLabel} sx={{ mb: 3 }}>
+              <Typography
+                variant="caption"
+                sx={{ display: 'block', fontWeight: 700, mb: 1.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: 0.5 }}
+              >
+                {dayLabel} · {fixtures.length} match{fixtures.length !== 1 ? 'es' : ''}
+              </Typography>
+              {fixtures.map((fixture) => (
+                <MatchCard
+                  key={fixture.matchNumber}
+                  fixture={fixture}
+                  selected={predictions[fixture.matchNumber]}
+                  onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
+                  disabled={false}
+                  chipActive={getChipForMatch(fixture.matchNumber)}
+                  chipMode={chipMode}
+                  onApplyChip={handleApplyChip}
+                  pickCounts={leaguePicks[fixture.matchNumber]}
+                  totalMembers={leagueMemberCount}
+                  onOpenTeamInfo={setTeamDrawer}
+                />
+              ))}
+            </Box>
+          ))
+        )}
 
         {/* Bottom save */}
         <Box sx={{ mt: 3, textAlign: 'center' }}>
