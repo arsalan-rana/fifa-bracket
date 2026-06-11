@@ -43,11 +43,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: 'Payment not verified. Please e-transfer the buy-in to the league owner.' });
   }
 
-  if (!isPhaseOpen(phase)) return res.status(400).json({ error: 'Phase deadline passed' });
+  const fixture = getFixture(matchNumber);
+  if (!fixture) return res.status(400).json({ error: 'Invalid match number' });
 
-  const allowed = CHIPS_PER_PHASE[phase] ?? [];
+  const fixturePhase = fixture.phase;
+
+  // After the phase deadline only wildcard is allowed (its purpose is to protect late picks)
+  if (!isPhaseOpen(fixturePhase) && chipType !== 'wildcard') {
+    return res.status(400).json({ error: 'Phase deadline passed — only wildcard can be applied now' });
+  }
+
+  const allowed = CHIPS_PER_PHASE[fixturePhase] ?? [];
   if (!allowed.includes(chipType)) {
-    return res.status(400).json({ error: `Chip ${chipType} not available in ${phase}` });
+    return res.status(400).json({ error: `Chip ${chipType} not available in ${fixturePhase}` });
   }
 
   // Banker chip is once per tournament (all phases combined)
@@ -56,11 +64,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       where: { userId: user.id, leagueId, chipType: 'banker' },
     });
     if (bankerUsed) return res.status(400).json({ error: 'Banker chip already used this tournament' });
-  }
-
-  const fixture = getFixture(matchNumber);
-  if (!fixture || fixture.phase !== phase) {
-    return res.status(400).json({ error: 'Invalid match for this phase' });
   }
 
   if (new Date(fixture.date) <= new Date()) {
@@ -74,11 +77,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           userId: user.id,
           leagueId,
           chipType,
-          phase,
+          phase: fixturePhase,
         },
       },
       update: { matchNumber, usedAt: new Date() },
-      create: { userId: user.id, leagueId, chipType, phase, matchNumber },
+      create: { userId: user.id, leagueId, chipType, phase: fixturePhase, matchNumber },
     });
 
     return res.status(200).json({ success: true, chip });

@@ -520,16 +520,17 @@ export default function BracketPage({ params }: Props) {
       if (!chipMode || !leagueId || chipSubmitting) return;
       setChipSubmitting(true);
       try {
+        const fixturePhase = GROUP_FIXTURES.find((f) => f.matchNumber === matchNumber)?.phase ?? currentPhase;
         const res = await fetch('/api/submit-chips', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ leagueId, phase: currentPhase, chipType: chipMode, matchNumber }),
+          body: JSON.stringify({ leagueId, phase: fixturePhase, chipType: chipMode, matchNumber }),
         });
         const data = await res.json();
         if (res.ok) {
           setChips((prev) => ({
             ...prev,
-            [`${currentPhase}:${chipMode}`]: { matchNumber, chipType: chipMode, phase: currentPhase },
+            [`${fixturePhase}:${chipMode}`]: { matchNumber, chipType: chipMode, phase: fixturePhase },
           }));
           setSnack({
             msg:
