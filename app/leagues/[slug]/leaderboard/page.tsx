@@ -222,14 +222,13 @@ export default function LeaderboardPage({ params }: Props) {
                             ))}
                           </Box>
                           {session && (
-                            <IconButton
+                            <Chip
+                              label={isMe ? '📣' : '⚡'}
                               size="small"
                               onClick={() => setTauntTarget({ email: entry.user.email, name: entry.user.name ?? entry.user.email.split('@')[0] })}
-                              sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' }, flexShrink: 0, fontSize: '1rem' }}
                               title={isMe ? 'Set status' : 'Send a taunt'}
-                            >
-                              {isMe ? '📣' : '⚡'}
-                            </IconButton>
+                              sx={{ flexShrink: 0, cursor: 'pointer', fontSize: '0.75rem', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
+                            />
                           )}
                         </Box>
                       </TableCell>
