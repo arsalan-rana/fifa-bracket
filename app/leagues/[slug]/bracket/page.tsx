@@ -634,19 +634,28 @@ export default function BracketPage({ params }: Props) {
     const now = new Date();
     const phaseFixtures = GROUP_FIXTURES.filter((f) => f.phase === phase);
     // Only submit picks for matches that haven't started — server hard-rejects started matches
-    const phasePredictions = phaseFixtures
+    const unstartedPicks = phaseFixtures
       .filter((f) => predictions[f.matchNumber] && new Date(f.date) > now)
       .map((f) => ({ matchNumber: f.matchNumber, predictedWinner: predictions[f.matchNumber] }));
 
+    // After deadline: only send genuinely new picks (not already in DB as on-time).
+    // The server enforces this too, but filtering client-side avoids a pointless round-trip.
+    const phasePredictions = isPastDeadline
+      ? unstartedPicks.filter((p) => savedPredictions[p.matchNumber] === undefined)
+      : unstartedPicks;
+
     if (phasePredictions.length === 0) {
-      setSnack({ msg: 'No picks to save — all remaining matches have already started', severity: 'error' });
+      const msg = isPastDeadline
+        ? 'Nothing new to submit — your remaining picks are either locked or already saved'
+        : 'No picks to save — all remaining matches have already started';
+      setSnack({ msg, severity: 'error' });
       setSubmitting(false);
       return;
     }
 
-    // Warn if unstarted matches are missing picks (but still allow partial save)
+    // Count truly unpicked unstarted matches (no pick in state at all)
     const unstartedTotal = phaseFixtures.filter((f) => new Date(f.date) > now).length;
-    const missing = unstartedTotal - phasePredictions.length;
+    const missing = unstartedTotal - phaseFixtures.filter((f) => predictions[f.matchNumber] && new Date(f.date) > now).length;
 
     try {
       const res = await fetch('/api/submit-prediction', {
@@ -718,7 +727,7 @@ export default function BracketPage({ params }: Props) {
               <Chip label="⏰ Deadline passed — late submissions" color="warning" />
             ) : (
               <Chip
-                label={`⏳ Deadline: ${new Date(phaseConfig.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
+                label={`⏳ Deadline: ${new Date(phaseConfig.deadline).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York', timeZoneName: 'short' })}`}
                 color="success"
                 variant="outlined"
               />

@@ -62,9 +62,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // After deadline, on-time picks are locked — never overwrite them with a late submission
+    let predsToSave = [...predictions];
+    if (phaseIsLate) {
+      const lockedPreds = await db.prediction.findMany({
+        where: {
+          userId: user.id,
+          leagueId,
+          matchNumber: { in: predsToSave.map((p) => p.matchNumber) },
+          isLate: false,
+        },
+        select: { matchNumber: true },
+      });
+      const lockedNums = new Set(lockedPreds.map((p) => p.matchNumber));
+      predsToSave = predsToSave.filter((p) => !lockedNums.has(p.matchNumber));
+
+      if (predsToSave.length === 0) {
+        return res.status(200).json({ success: true, count: 0, isLate: true, allLocked: true });
+      }
+    }
+
     // Upsert each prediction; wildcard chip exempts a match from the late penalty
     await db.$transaction(
-      predictions.map((pred) => {
+      predsToSave.map((pred) => {
         const isLate = phaseIsLate && !wildcardMatchNumbers.has(pred.matchNumber);
         return db.prediction.upsert({
           where: {
@@ -98,14 +118,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         details: JSON.stringify({
           phase,
           phaseName: phaseConfig.name,
-          count: predictions.length,
+          count: predsToSave.length,
           userName: session.user.name,
           isLate: phaseIsLate,
         }),
       },
     });
 
-    return res.status(200).json({ success: true, count: predictions.length, isLate: phaseIsLate });
+    return res.status(200).json({ success: true, count: predsToSave.length, isLate: phaseIsLate });
   } catch {
     return res.status(500).json({ error: 'Failed to submit predictions' });
   }

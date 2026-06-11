@@ -243,7 +243,7 @@ export const GROUP_FIXTURES: Fixture[] = [
   { matchNumber: 63, phase: 'group', group: 'K', team1: 'POR', team2: 'UZB', venue: 'NRG Stadium', city: 'Houston', date: '2026-06-23T22:00:00Z', canDraw: true, aiPrediction: 'POR' },
   { matchNumber: 64, phase: 'group', group: 'K', team1: 'COL', team2: 'COD', venue: 'Estadio Akron', city: 'Guadalajara', date: '2026-06-24T22:00:00Z', canDraw: true, aiPrediction: 'COL' },
   { matchNumber: 65, phase: 'group', group: 'K', team1: 'POR', team2: 'COL', venue: 'Hard Rock Stadium', city: 'Miami', date: '2026-06-27T22:00:00Z', canDraw: true, aiPrediction: 'POR' },
-  { matchNumber: 66, phase: 'group', group: 'K', team1: 'UZB', team2: 'COD', venue: 'Arrowhead Stadium', city: 'Kansas City', date: '2026-06-27T22:00:00Z', canDraw: true, aiPrediction: 'COL' },
+  { matchNumber: 66, phase: 'group', group: 'K', team1: 'UZB', team2: 'COD', venue: 'Arrowhead Stadium', city: 'Kansas City', date: '2026-06-27T22:00:00Z', canDraw: true, aiPrediction: 'UZB' },
 
   // ── GROUP L ──
   { matchNumber: 67, phase: 'group', group: 'L', team1: 'ENG', team2: 'CRO', venue: 'AT&T Stadium', city: 'Dallas', date: '2026-06-17T22:00:00Z', canDraw: true, aiPrediction: 'ENG' },
@@ -412,7 +412,7 @@ export const PHASES: PhaseConfig[] = [
     id: 'group',
     name: 'Group Stage',
     shortName: 'Groups',
-    deadline: '2026-06-11T18:00:00Z',
+    deadline: '2026-06-11T19:00:00Z',
     color: '#003DA5',
     icon: '🏟️',
     scoringType: 'pool',

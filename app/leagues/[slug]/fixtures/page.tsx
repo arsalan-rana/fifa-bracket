@@ -366,9 +366,14 @@ function MatchRow({
           '&:hover': { bgcolor: 'action.hover' },
         }}
       >
-        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 52, flexShrink: 0 }}>
-          {new Date(fixture.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </Typography>
+        <Box sx={{ minWidth: 64, flexShrink: 0 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3 }}>
+            {new Date(fixture.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })}
+          </Typography>
+          <Typography variant="caption" color="text.disabled" sx={{ display: 'block', lineHeight: 1.3, fontSize: '0.6rem' }}>
+            {new Date(fixture.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York', timeZoneName: 'short' })}
+          </Typography>
+        </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="body2" noWrap>{label}</Typography>
         </Box>
