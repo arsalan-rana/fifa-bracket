@@ -35,6 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     isPrizePool: league.isPrizePool,
     buyInAmount: league.buyInAmount ? Number(league.buyInAmount) : null,
     buyInCurrency: league.buyInCurrency,
+    scoreEnabled: league.scoreEnabled,
     isVerified: isMember?.isVerified ?? true,
     memberCount: league._count.members,
   });

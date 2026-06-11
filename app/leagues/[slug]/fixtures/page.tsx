@@ -15,13 +15,18 @@ import Avatar from '@mui/material/Avatar';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import Button from '@mui/material/Button';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChatBubbleOutlinedIcon from '@mui/icons-material/ChatBubbleOutlined';
 import PeopleIcon from '@mui/icons-material/People';
 import SendIcon from '@mui/icons-material/Send';
 import EventNoteIcon from '@mui/icons-material/EventNote';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
-import SportsScoreIcon from '@mui/icons-material/SportsScore';
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
+import CloseIcon from '@mui/icons-material/Close';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import ToggleButton from '@mui/material/ToggleButton';
 import GroupWorkIcon from '@mui/icons-material/GroupWork';
@@ -49,8 +54,9 @@ interface Comment {
   user: { name: string | null; email: string; image: string | null };
 }
 
-type Picker = { name: string; image: string | null; email: string };
+type Picker = { name: string; image: string | null; email: string; goals1?: number | null; goals2?: number | null };
 type Picks = Record<number, Record<string, Picker[]>>;
+type Scores = Record<number, { name: string; image: string | null; goals1: number; goals2: number }[]>;
 
 interface MyPrediction {
   predictedWinner: string;
@@ -79,7 +85,7 @@ function timeAgo(dateStr: string) {
 
 // ─── Picks Section ────────────────────────────────────────────────────────────
 
-function PicksSection({ fixture, picksForMatch }: { fixture: Fixture; picksForMatch: Record<string, Picker[]> }) {
+function PicksSection({ fixture, picksForMatch, scoresForMatch }: { fixture: Fixture; picksForMatch: Record<string, Picker[]>; scoresForMatch: { name: string; image: string | null; goals1: number; goals2: number }[] }) {
   const opts = [
     { code: fixture.team1 },
     ...(fixture.canDraw ? [{ code: 'DRAW' }] : []),
@@ -193,6 +199,37 @@ function PicksSection({ fixture, picksForMatch }: { fixture: Fixture; picksForMa
               </Box>
             );
           })}
+        </Box>
+      )}
+
+      {/* Score predictions */}
+      {scoresForMatch.length > 0 && (
+        <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Typography
+            variant="caption"
+            sx={{ display: 'block', fontWeight: 700, color: 'text.secondary', mb: 1, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: '0.65rem' }}
+          >
+            ⚽ Score Predictions
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {scoresForMatch.map((s) => (
+              <Box
+                key={s.name}
+                sx={{
+                  display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.5,
+                  borderRadius: 2, bgcolor: 'rgba(201,167,58,0.1)', border: '1px solid rgba(201,167,58,0.2)',
+                }}
+              >
+                <Avatar src={s.image ?? undefined} sx={{ width: 20, height: 20, fontSize: '0.6rem' }}>
+                  {!s.image && s.name[0]?.toUpperCase()}
+                </Avatar>
+                <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.7rem' }}>{s.name}</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: 'secondary.main', fontSize: '0.75rem' }}>
+                  {s.goals1}–{s.goals2}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
         </Box>
       )}
     </Box>
@@ -319,78 +356,117 @@ function CommentThread({
   );
 }
 
-// ─── Score Input ──────────────────────────────────────────────────────────────
+// ─── Score Dialog ─────────────────────────────────────────────────────────────
 
-function ScoreInput({
+function ScoreSpinner({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+      <IconButton size="small" onClick={() => onChange(Math.min(20, value + 1))} sx={{ border: '1px solid', borderColor: 'divider' }}>
+        <AddIcon fontSize="small" />
+      </IconButton>
+      <Typography variant="h3" sx={{ fontWeight: 900, minWidth: 56, textAlign: 'center', color: 'secondary.main', lineHeight: 1.2 }}>
+        {value}
+      </Typography>
+      <IconButton size="small" onClick={() => onChange(Math.max(0, value - 1))} sx={{ border: '1px solid', borderColor: 'divider' }}>
+        <RemoveIcon fontSize="small" />
+      </IconButton>
+    </Box>
+  );
+}
+
+function ScoreDialog({
   fixture,
   leagueId,
   initialGoals1,
   initialGoals2,
+  onClose,
   onSaved,
 }: {
   fixture: Fixture;
   leagueId: string;
   initialGoals1: number | null;
   initialGoals2: number | null;
+  onClose: () => void;
   onSaved: (g1: number, g2: number) => void;
 }) {
-  const [g1, setG1] = useState<string>(initialGoals1 !== null ? String(initialGoals1) : '');
-  const [g2, setG2] = useState<string>(initialGoals2 !== null ? String(initialGoals2) : '');
+  const [g1, setG1] = useState(initialGoals1 ?? 0);
+  const [g2, setG2] = useState(initialGoals2 ?? 0);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+  const team1 = TEAMS[fixture.team1];
+  const team2 = TEAMS[fixture.team2];
 
   async function save() {
-    const n1 = parseInt(g1);
-    const n2 = parseInt(g2);
-    if (isNaN(n1) || isNaN(n2) || g1 === '' || g2 === '' || saving) return;
     setSaving(true);
+    setError('');
     try {
       const res = await fetch('/api/submit-score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leagueId, matchNumber: fixture.matchNumber, goals1: n1, goals2: n2 }),
+        body: JSON.stringify({ leagueId, matchNumber: fixture.matchNumber, goals1: g1, goals2: g2 }),
       });
       if (res.ok) {
-        setSaved(true);
-        onSaved(n1, n2);
-        setTimeout(() => setSaved(false), 2500);
+        onSaved(g1, g2);
+        onClose();
+      } else {
+        const data = await res.json();
+        setError(data.error ?? 'Failed to save');
       }
     } finally {
       setSaving(false);
     }
   }
 
-  const inputSx = {
-    width: 44,
-    '& input': { textAlign: 'center', px: 0.5, py: 0.5, fontSize: '0.8rem', MozAppearance: 'textfield' },
-    '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': { display: 'none' },
-  };
-
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 0.5, pb: 1, pl: 9 }}>
-      <SportsScoreIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
-      <Typography variant="caption" color="text.secondary" sx={{ mr: 0.25 }}>Score:</Typography>
-      <TextField
-        size="small"
-        type="number"
-        value={g1}
-        onChange={(e) => setG1(e.target.value.slice(0, 2))}
-        onBlur={() => { if (g1 !== '' && g2 !== '') save(); }}
-        slotProps={{ htmlInput: { min: 0, max: 20 } }}
-        sx={inputSx}
-      />
-      <Typography variant="caption" color="text.secondary">–</Typography>
-      <TextField
-        size="small"
-        type="number"
-        value={g2}
-        onChange={(e) => setG2(e.target.value.slice(0, 2))}
-        onBlur={() => { if (g1 !== '' && g2 !== '') save(); }}
-        slotProps={{ htmlInput: { min: 0, max: 20 } }}
-        sx={inputSx}
-      />
-      {saved && <CheckCircleOutlineIcon sx={{ fontSize: 14, color: 'success.main' }} />}
-    </Box>
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 0 }}>
+        <Typography variant="h6" sx={{ fontWeight: 800 }}>⚽ Predict Score</Typography>
+        <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ pt: 1 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+          {new Date(fixture.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' })}
+        </Typography>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 3 }}>
+          {/* Team 1 */}
+          <Box sx={{ textAlign: 'center', minWidth: 72 }}>
+            <Typography sx={{ fontSize: '2.5rem', lineHeight: 1 }}>{team1?.flag ?? '🏳'}</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 700, mt: 0.5, display: 'block' }}>
+              {team1?.name ?? fixture.team1}
+            </Typography>
+          </Box>
+
+          {/* Score spinners */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <ScoreSpinner value={g1} onChange={setG1} />
+            <Typography variant="h5" sx={{ color: 'text.disabled', fontWeight: 300 }}>–</Typography>
+            <ScoreSpinner value={g2} onChange={setG2} />
+          </Box>
+
+          {/* Team 2 */}
+          <Box sx={{ textAlign: 'center', minWidth: 72 }}>
+            <Typography sx={{ fontSize: '2.5rem', lineHeight: 1 }}>{team2?.flag ?? '🏳'}</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 700, mt: 0.5, display: 'block' }}>
+              {team2?.name ?? fixture.team2}
+            </Typography>
+          </Box>
+        </Box>
+
+        {error && <Typography variant="caption" color="error.main" sx={{ display: 'block', mb: 1, textAlign: 'center' }}>{error}</Typography>}
+
+        <Button
+          fullWidth
+          variant="contained"
+          color="secondary"
+          onClick={save}
+          disabled={saving}
+          sx={{ fontWeight: 700, py: 1.25 }}
+        >
+          {saving ? 'Saving…' : initialGoals1 !== null ? 'Update Prediction' : 'Save Prediction'}
+        </Button>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -404,12 +480,14 @@ interface MatchRowProps {
   picksOpen: boolean;
   comments: Comment[];
   picksForMatch: Record<string, Picker[]>;
+  scoresForMatch: { name: string; image: string | null; goals1: number; goals2: number }[];
   leagueId: string;
   myPrediction: MyPrediction | null;
+  scoreEnabled: boolean;
   onToggleComments: () => void;
   onTogglePicks: () => void;
   onNewComment: (c: Comment) => void;
-  onScoreSaved: (g1: number, g2: number) => void;
+  onOpenScore: () => void;
 }
 
 function MatchRow({
@@ -420,17 +498,20 @@ function MatchRow({
   picksOpen,
   comments,
   picksForMatch,
+  scoresForMatch,
   leagueId,
   myPrediction,
+  scoreEnabled,
   onToggleComments,
   onTogglePicks,
   onNewComment,
-  onScoreSaved,
+  onOpenScore,
 }: MatchRowProps) {
   const totalPicks = Object.values(picksForMatch).reduce((s, a) => s + a.length, 0);
   const isAnyOpen = commentsOpen || picksOpen;
   const rowRef = useRef<HTMLDivElement>(null);
   const kickedOff = new Date(fixture.date) <= new Date();
+  const hasScore = myPrediction?.goals1 !== null && myPrediction?.goals2 !== null && myPrediction?.goals1 !== undefined;
 
   // When a panel opens, wait for Collapse animation then scroll the row to a sensible position
   useEffect(() => {
@@ -441,9 +522,14 @@ function MatchRow({
     }
   }, [commentsOpen, picksOpen]);
 
+  const winnerLabel = myPrediction
+    ? myPrediction.predictedWinner === 'DRAW'
+      ? '🤝 Draw'
+      : `${TEAMS[myPrediction.predictedWinner]?.flag ?? ''} ${TEAMS[myPrediction.predictedWinner]?.name ?? myPrediction.predictedWinner}`
+    : null;
+
   return (
     <Box ref={rowRef} sx={{ borderBottom: isAnyOpen ? 'none' : '1px solid', borderColor: isAnyOpen ? 'transparent' : 'divider' }}>
-      {/* Fixture row */}
       <Box
         sx={{
           display: 'flex',
@@ -454,6 +540,7 @@ function MatchRow({
           '&:hover': { bgcolor: 'action.hover' },
         }}
       >
+        {/* Date/time */}
         <Box sx={{ minWidth: 64, flexShrink: 0 }}>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3 }}>
             {new Date(fixture.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })}
@@ -462,29 +549,51 @@ function MatchRow({
             {new Date(fixture.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York', timeZoneName: 'short' })}
           </Typography>
         </Box>
+
+        {/* Match name + pick hint */}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="body2" noWrap>{label}</Typography>
+          {myPrediction && (
+            <Typography variant="caption" color="text.disabled" noWrap sx={{ display: 'block', lineHeight: 1.4 }}>
+              {winnerLabel}{hasScore ? ` · ${myPrediction.goals1}–${myPrediction.goals2}` : ''}
+            </Typography>
+          )}
         </Box>
+
+        {/* City */}
         <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, flexShrink: 0 }}>
           {fixture.city}
         </Typography>
+
+        {/* Score button — only when scoreEnabled and winner is picked and not kicked off */}
+        {scoreEnabled && myPrediction && !kickedOff && (
+          <Chip
+            size="small"
+            label={hasScore ? `${myPrediction.goals1}–${myPrediction.goals2}` : '⚽'}
+            onClick={onOpenScore}
+            sx={{
+              flexShrink: 0,
+              height: 20,
+              fontSize: '0.65rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              bgcolor: hasScore ? 'rgba(201,167,58,0.15)' : 'action.hover',
+              color: hasScore ? 'secondary.main' : 'text.disabled',
+              border: '1px solid',
+              borderColor: hasScore ? 'secondary.main' : 'divider',
+              '&:hover': { bgcolor: 'secondary.main', color: 'background.default' },
+            }}
+          />
+        )}
 
         {/* Picks toggle — only after deadline */}
         {isPastDeadline && (
           <Box
             onClick={onTogglePicks}
             sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.4,
-              cursor: 'pointer',
-              flexShrink: 0,
-              color: picksOpen ? 'secondary.main' : 'text.disabled',
-              px: 0.75,
-              py: 0.5,
-              borderRadius: 1,
-              '&:hover': { color: 'secondary.main', bgcolor: 'action.hover' },
-              transition: 'color 0.15s',
+              display: 'flex', alignItems: 'center', gap: 0.4, cursor: 'pointer', flexShrink: 0,
+              color: picksOpen ? 'secondary.main' : 'text.disabled', px: 0.75, py: 0.5, borderRadius: 1,
+              '&:hover': { color: 'secondary.main', bgcolor: 'action.hover' }, transition: 'color 0.15s',
             }}
           >
             <PeopleIcon sx={{ fontSize: 14 }} />
@@ -500,17 +609,9 @@ function MatchRow({
         <Box
           onClick={onToggleComments}
           sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.4,
-            cursor: 'pointer',
-            flexShrink: 0,
-            color: commentsOpen ? 'primary.main' : 'text.disabled',
-            px: 0.75,
-            py: 0.5,
-            borderRadius: 1,
-            '&:hover': { color: 'primary.main', bgcolor: 'action.hover' },
-            transition: 'color 0.15s',
+            display: 'flex', alignItems: 'center', gap: 0.4, cursor: 'pointer', flexShrink: 0,
+            color: commentsOpen ? 'primary.main' : 'text.disabled', px: 0.75, py: 0.5, borderRadius: 1,
+            '&:hover': { color: 'primary.main', bgcolor: 'action.hover' }, transition: 'color 0.15s',
           }}
         >
           <ChatBubbleOutlinedIcon sx={{ fontSize: 14 }} />
@@ -522,42 +623,10 @@ function MatchRow({
         </Box>
       </Box>
 
-      {/* My winner badge — shown when match has started and pick exists */}
-      {kickedOff && myPrediction && (
-        <Box sx={{ px: 0.5, pb: 0.75, pl: 9, display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Typography variant="caption" color="text.disabled">Your pick:</Typography>
-          <Chip
-            size="small"
-            label={
-              myPrediction.predictedWinner === 'DRAW'
-                ? '🤝 Draw'
-                : `${TEAMS[myPrediction.predictedWinner]?.flag ?? ''} ${TEAMS[myPrediction.predictedWinner]?.name ?? myPrediction.predictedWinner}`
-            }
-            sx={{ height: 18, fontSize: '0.65rem', fontWeight: 600 }}
-          />
-          {myPrediction.goals1 !== null && myPrediction.goals2 !== null && (
-            <Typography variant="caption" color="secondary.main" sx={{ fontWeight: 700 }}>
-              {myPrediction.goals1}–{myPrediction.goals2}
-            </Typography>
-          )}
-        </Box>
-      )}
-
-      {/* Score input — only when match hasn't kicked off and winner is picked */}
-      {!kickedOff && myPrediction && (
-        <ScoreInput
-          fixture={fixture}
-          leagueId={leagueId}
-          initialGoals1={myPrediction.goals1}
-          initialGoals2={myPrediction.goals2}
-          onSaved={onScoreSaved}
-        />
-      )}
-
       {/* Picks panel */}
       {isPastDeadline && (
         <Collapse in={picksOpen} unmountOnExit>
-          <PicksSection fixture={fixture} picksForMatch={picksForMatch} />
+          <PicksSection fixture={fixture} picksForMatch={picksForMatch} scoresForMatch={scoresForMatch} />
         </Collapse>
       )}
 
@@ -579,27 +648,35 @@ function MatchRow({
 export default function FixturesPage({ params }: Props) {
   const { slug } = use(params);
   const [leagueId, setLeagueId] = useState('');
+  const [scoreEnabled, setScoreEnabled] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [picks, setPicks] = useState<Picks>({});
+  const [scores, setScores] = useState<Scores>({});
   const [myPreds, setMyPreds] = useState<Record<number, MyPrediction>>({});
   const [openComments, setOpenComments] = useState<Set<number>>(new Set());
   const [openPicks, setOpenPicks] = useState<Set<number>>(new Set());
   const [groupBy, setGroupBy] = useState<'group' | 'date'>('group');
+  const [scoreDialog, setScoreDialog] = useState<Fixture | null>(null);
 
   useEffect(() => {
     async function load() {
       const leagueRes = await fetch(`/api/league-by-slug?slug=${slug}`);
       if (!leagueRes.ok) return;
-      const { id } = await leagueRes.json();
-      setLeagueId(id);
+      const leagueData = await leagueRes.json();
+      setLeagueId(leagueData.id);
+      setScoreEnabled(!!leagueData.scoreEnabled);
 
       const [cRes, pRes, myRes] = await Promise.all([
-        fetch(`/api/match-comments?leagueId=${id}`),
-        fetch(`/api/match-picks?leagueId=${id}`),
-        fetch(`/api/get-predictions?leagueId=${id}`),
+        fetch(`/api/match-comments?leagueId=${leagueData.id}`),
+        fetch(`/api/match-picks?leagueId=${leagueData.id}`),
+        fetch(`/api/get-predictions?leagueId=${leagueData.id}`),
       ]);
       if (cRes.ok) setComments((await cRes.json()).comments);
-      if (pRes.ok) setPicks((await pRes.json()).picks);
+      if (pRes.ok) {
+        const data = await pRes.json();
+        setPicks(data.picks);
+        setScores(data.scores ?? {});
+      }
       if (myRes.ok) {
         const { predictions } = await myRes.json();
         const map: Record<number, MyPrediction> = {};
@@ -679,17 +756,14 @@ export default function FixturesPage({ params }: Props) {
         picksOpen={openPicks.has(fixture.matchNumber)}
         comments={commentsFor(fixture.matchNumber)}
         picksForMatch={picks[fixture.matchNumber] ?? {}}
+        scoresForMatch={scores[fixture.matchNumber] ?? []}
         leagueId={leagueId}
         myPrediction={myPreds[fixture.matchNumber] ?? null}
+        scoreEnabled={scoreEnabled}
         onToggleComments={() => toggleComments(fixture.matchNumber)}
         onTogglePicks={() => togglePicks(fixture.matchNumber)}
         onNewComment={addComment}
-        onScoreSaved={(g1, g2) =>
-          setMyPreds((prev) => ({
-            ...prev,
-            [fixture.matchNumber]: { ...prev[fixture.matchNumber]!, goals1: g1, goals2: g2 },
-          }))
-        }
+        onOpenScore={() => setScoreDialog(fixture)}
       />
     );
   }
@@ -855,6 +929,23 @@ export default function FixturesPage({ params }: Props) {
           );
         })}
       </Container>
+
+      {/* Score prediction dialog */}
+      {scoreDialog && (
+        <ScoreDialog
+          fixture={scoreDialog}
+          leagueId={leagueId}
+          initialGoals1={myPreds[scoreDialog.matchNumber]?.goals1 ?? null}
+          initialGoals2={myPreds[scoreDialog.matchNumber]?.goals2 ?? null}
+          onClose={() => setScoreDialog(null)}
+          onSaved={(g1, g2) => {
+            setMyPreds((prev) => ({
+              ...prev,
+              [scoreDialog.matchNumber]: { ...prev[scoreDialog.matchNumber]!, goals1: g1, goals2: g2 },
+            }));
+          }}
+        />
+      )}
     </Box>
   );
 }

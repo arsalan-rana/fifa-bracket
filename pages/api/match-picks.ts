@@ -31,8 +31,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     include: { user: { select: { name: true, image: true, email: true } } },
   });
 
-  type Picker = { name: string; image: string | null; email: string };
+  type Picker = { name: string; image: string | null; email: string; goals1?: number | null; goals2?: number | null };
   const picks: Record<number, Record<string, Picker[]>> = {};
+  const scores: Record<number, { name: string; image: string | null; goals1: number; goals2: number }[]> = {};
 
   for (const p of predictions) {
     if (!picks[p.matchNumber]) picks[p.matchNumber] = {};
@@ -41,8 +42,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       name: p.user.name ?? p.user.email.split('@')[0],
       image: p.user.image,
       email: p.user.email,
+      goals1: p.goals1,
+      goals2: p.goals2,
     });
+    if (p.goals1 !== null && p.goals2 !== null) {
+      if (!scores[p.matchNumber]) scores[p.matchNumber] = [];
+      scores[p.matchNumber].push({
+        name: p.user.name ?? p.user.email.split('@')[0],
+        image: p.user.image,
+        goals1: p.goals1,
+        goals2: p.goals2,
+      });
+    }
   }
 
-  return res.status(200).json({ picks });
+  return res.status(200).json({ picks, scores });
 }

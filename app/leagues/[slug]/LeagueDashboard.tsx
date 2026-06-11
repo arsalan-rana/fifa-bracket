@@ -37,6 +37,7 @@ interface LeagueDashboardProps {
     isPrizePool: boolean;
     buyInAmount?: number | string | null;
     buyInCurrency: string;
+    scoreEnabled: boolean;
     members: {
       userId: string;
       isVerified: boolean;
@@ -82,6 +83,9 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
   const [resetVerification, setResetVerification] = useState(false);
   const [savingPrizePool, setSavingPrizePool] = useState(false);
   const [prizePoolMsg, setPrizePoolMsg] = useState('');
+  const [scoreEnabledState, setScoreEnabledState] = useState(league.scoreEnabled);
+  const [savingScore, setSavingScore] = useState(false);
+  const [scoreMsg, setScoreMsg] = useState('');
   const [deleting, setDeleting] = useState(false);
 
   const currentPhase = getCurrentPhase();
@@ -190,6 +194,33 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
       }
     } finally {
       setSavingPrizePool(false);
+    }
+  }
+
+  async function handleSaveScore() {
+    setSavingScore(true);
+    setScoreMsg('');
+    try {
+      const res = await fetch('/api/update-league', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leagueId: league.id,
+          isPrizePool: prizePoolEnabled,
+          buyInAmount: prizePoolEnabled ? parseFloat(buyInAmount) : null,
+          buyInCurrency: 'CAD',
+          scoreEnabled: scoreEnabledState,
+        }),
+      });
+      if (res.ok) {
+        setScoreMsg('Saved');
+        router.refresh();
+      } else {
+        const data = await res.json();
+        setScoreMsg(data.error || 'Failed to save');
+      }
+    } finally {
+      setSavingScore(false);
     }
   }
 
@@ -670,6 +701,43 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
                     {prizePoolMsg && (
                       <Typography variant="caption" color={prizePoolMsg === 'Saved' ? 'success.main' : 'error.main'} sx={{ display: 'block', mt: 0.5 }}>
                         {prizePoolMsg}
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Divider sx={{ my: 1.5 }} />
+
+                  {/* Score prediction toggle */}
+                  <Box sx={{ mb: 2 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={scoreEnabledState}
+                          onChange={(e) => { setScoreEnabledState(e.target.checked); setScoreMsg(''); }}
+                          color="secondary"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>Score Predictions</Typography>
+                          <Typography variant="caption" color="text.secondary">Members can predict exact scores (+15 pts each)</Typography>
+                        </Box>
+                      }
+                    />
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="secondary"
+                      fullWidth
+                      onClick={handleSaveScore}
+                      disabled={savingScore}
+                      sx={{ mt: 1 }}
+                    >
+                      {savingScore ? 'Saving…' : 'Save Score Settings'}
+                    </Button>
+                    {scoreMsg && (
+                      <Typography variant="caption" color={scoreMsg === 'Saved' ? 'success.main' : 'error.main'} sx={{ display: 'block', mt: 0.5 }}>
+                        {scoreMsg}
                       </Typography>
                     )}
                   </Box>
