@@ -46,6 +46,7 @@ interface TauntInfo {
   emoji: string;
   label: string;
   fromName: string;
+  isSelf: boolean;
 }
 
 const TAUNT_PRESETS = [
@@ -55,6 +56,7 @@ const TAUNT_PRESETS = [
   { emoji: '🏆', label: 'too easy' },
   { emoji: '😴', label: 'wake up' },
   { emoji: '🤞', label: 'still got time' },
+  { emoji: '🎰', label: 'this site is rigged' },
 ];
 
 function RankDelta({ rank, prevRank }: { rank: number; prevRank: number | null }) {
@@ -72,7 +74,7 @@ export default function LeaderboardPage({ params }: Props) {
   const [leagueId, setLeagueId] = useState('');
   // taunts keyed by toUserId
   // taunts keyed by toUser email
-  const [taunts, setTaunts] = useState<Record<string, TauntInfo>>({});
+  const [taunts, setTaunts] = useState<Record<string, TauntInfo[]>>({});
   // taunt dialog target
   const [tauntTarget, setTauntTarget] = useState<{ email: string; name: string } | null>(null);
   const [sendingTaunt, setSendingTaunt] = useState(false);
@@ -106,6 +108,8 @@ export default function LeaderboardPage({ params }: Props) {
     load();
   }, [slug]);
 
+  const isSelfTaunt = tauntTarget?.email === session?.user?.email;
+
   async function sendTaunt(emoji: string, label: string) {
     if (!tauntTarget || sendingTaunt) return;
     setSendingTaunt(true);
@@ -116,13 +120,15 @@ export default function LeaderboardPage({ params }: Props) {
         body: JSON.stringify({ leagueId, toEmail: tauntTarget.email, emoji, label }),
       });
       if (res.ok) {
+        const newTaunt: TauntInfo = {
+          emoji,
+          label,
+          fromName: session?.user?.name ?? session?.user?.email ?? 'You',
+          isSelf: isSelfTaunt,
+        };
         setTaunts((prev) => ({
           ...prev,
-          [tauntTarget.email]: {
-            emoji,
-            label,
-            fromName: session?.user?.name ?? session?.user?.email ?? 'You',
-          },
+          [tauntTarget.email]: [newTaunt, ...(prev[tauntTarget.email] ?? [])].slice(0, 5),
         }));
         setSentTaunt(emoji);
         setTimeout(() => {
@@ -181,7 +187,7 @@ export default function LeaderboardPage({ params }: Props) {
                     entry.quarterPoints +
                     entry.semiPoints +
                     entry.finalPoints;
-                  const receivedTaunt = taunts[entry.user.email] ?? null;
+                  const receivedTaunts = taunts[entry.user.email] ?? [];
 
                   return (
                     <TableRow
@@ -209,20 +215,20 @@ export default function LeaderboardPage({ params }: Props) {
                                 <Chip label="you" size="small" sx={{ ml: 1, height: 16, fontSize: '0.6rem' }} />
                               )}
                             </Typography>
-                            {receivedTaunt && (
-                              <Typography variant="caption" color="text.disabled" sx={{ lineHeight: 1.2 }}>
-                                {receivedTaunt.emoji} {receivedTaunt.label} · from {receivedTaunt.fromName}
+                            {receivedTaunts.map((t, i) => (
+                              <Typography key={i} variant="caption" color="text.disabled" sx={{ lineHeight: 1.3, display: 'block' }}>
+                                {t.emoji} {t.label}{!t.isSelf && ` · from ${t.fromName}`}
                               </Typography>
-                            )}
+                            ))}
                           </Box>
-                          {!isMe && session && (
+                          {session && (
                             <IconButton
                               size="small"
                               onClick={() => setTauntTarget({ email: entry.user.email, name: entry.user.name ?? entry.user.email.split('@')[0] })}
-                              sx={{ opacity: 0.4, '&:hover': { opacity: 1 }, flexShrink: 0, fontSize: '1rem' }}
-                              title="Send a taunt"
+                              sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' }, flexShrink: 0, fontSize: '1rem' }}
+                              title={isMe ? 'Set status' : 'Send a taunt'}
                             >
-                              ⚡
+                              {isMe ? '📣' : '⚡'}
                             </IconButton>
                           )}
                         </Box>
@@ -266,7 +272,7 @@ export default function LeaderboardPage({ params }: Props) {
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            {sentTaunt ? `${sentTaunt} Sent!` : `Taunt ${tauntTarget?.name}`}
+            {sentTaunt ? `${sentTaunt} Done!` : isSelfTaunt ? '📣 Set your status' : `Taunt ${tauntTarget?.name}`}
           </Typography>
           <IconButton size="small" onClick={() => setTauntTarget(null)} disabled={sendingTaunt}>
             <CloseIcon fontSize="small" />

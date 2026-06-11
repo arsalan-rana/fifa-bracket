@@ -26,17 +26,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     orderBy: { createdAt: 'desc' },
   });
 
-  // Keep only the most recent taunt per recipient, keyed by toUser email
-  const latest: Record<string, { emoji: string; label: string; fromName: string }> = {};
+  // Group taunts by recipient, newest first, max 5 per user
+  const grouped: Record<string, { emoji: string; label: string; fromName: string; isSelf: boolean }[]> = {};
   for (const t of taunts) {
-    if (!latest[t.toUser.email]) {
-      latest[t.toUser.email] = {
+    const key = t.toUser.email;
+    if (!grouped[key]) grouped[key] = [];
+    if (grouped[key].length < 5) {
+      grouped[key].push({
         emoji: t.emoji,
         label: t.label,
         fromName: t.fromUser.name ?? t.fromUser.email,
-      };
+        isSelf: t.fromUserId === t.toUserId,
+      });
     }
   }
 
-  return res.status(200).json({ taunts: latest });
+  return res.status(200).json({ taunts: grouped });
 }

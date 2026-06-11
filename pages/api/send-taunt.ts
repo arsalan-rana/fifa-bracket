@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../lib/auth';
 import { db } from '../../lib/db';
 
-const VALID_EMOJIS = ['🔥', '😬', '👀', '🏆', '😴', '🤞'];
+const VALID_EMOJIS = ['🔥', '😬', '👀', '🏆', '😴', '🤞', '🎰'];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -20,7 +20,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!leagueId || !toEmail || !emoji || !label) return res.status(400).json({ error: 'Missing fields' });
   if (!VALID_EMOJIS.includes(emoji)) return res.status(400).json({ error: 'Invalid emoji' });
-  if (toEmail === session.user.email) return res.status(400).json({ error: "Can't taunt yourself" });
 
   const [fromUser, toUser] = await Promise.all([
     db.user.findUnique({ where: { email: session.user.email } }),
