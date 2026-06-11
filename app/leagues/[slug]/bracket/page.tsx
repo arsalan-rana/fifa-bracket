@@ -119,20 +119,29 @@ function MatchCard({
             Match {fixture.matchNumber} · {fixture.city} ·{' '}
             {matchDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </Typography>
-          {chipActive && (
-            <Chip
-              label={chipActive === 'doubleUp' ? '⚡ 2×' : '🃏 Wildcard'}
-              size="small"
-              sx={{
-                height: 20,
-                fontSize: '0.65rem',
-                fontWeight: 700,
-                background: chipActive === 'doubleUp' ? 'rgba(201,167,58,0.25)' : 'rgba(139,92,246,0.25)',
-                color: chipActive === 'doubleUp' ? '#C9A73A' : '#A78BFA',
-                border: `1px solid ${chipActive === 'doubleUp' ? '#C9A73A' : '#A78BFA'}`,
-              }}
-            />
-          )}
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+            {started && (
+              <Chip
+                label="🔒 Started"
+                size="small"
+                sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'action.hover', color: 'text.disabled' }}
+              />
+            )}
+            {chipActive && (
+              <Chip
+                label={chipActive === 'doubleUp' ? '⚡ 2×' : '🃏 Wildcard'}
+                size="small"
+                sx={{
+                  height: 20,
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  background: chipActive === 'doubleUp' ? 'rgba(201,167,58,0.25)' : 'rgba(139,92,246,0.25)',
+                  color: chipActive === 'doubleUp' ? '#C9A73A' : '#A78BFA',
+                  border: `1px solid ${chipActive === 'doubleUp' ? '#C9A73A' : '#A78BFA'}`,
+                }}
+              />
+            )}
+          </Box>
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -395,6 +404,7 @@ export default function BracketPage({ params }: Props) {
   const { slug } = use(params);
 
   const [predictions, setPredictions] = useState<Predictions>({});
+  const [savedPredictions, setSavedPredictions] = useState<Predictions>({});
   const [chips, setChips] = useState<ChipsState>({});
   const [chipMode, setChipMode] = useState<ChipType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -402,7 +412,7 @@ export default function BracketPage({ params }: Props) {
   const [chipSubmitting, setChipSubmitting] = useState(false);
   const [leagueId, setLeagueId] = useState('');
   const [isVerified, setIsVerified] = useState(true);
-  const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
+  const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' | 'warning' } | null>(null);
   const [expanded, setExpanded] = useState<string>('group-A');
   const [groupBy, setGroupBy] = useState<'group' | 'date'>('group');
   const [leaguePicks, setLeaguePicks] = useState<Record<number, Record<string, number>>>({});
@@ -444,6 +454,7 @@ export default function BracketPage({ params }: Props) {
           const predMap: Predictions = {};
           for (const p of data.predictions) predMap[p.matchNumber] = p.predictedWinner;
           setPredictions(predMap);
+          setSavedPredictions(predMap);
 
           const chipMap: ChipsState = {};
           for (const c of data.chips) {
@@ -620,16 +631,22 @@ export default function BracketPage({ params }: Props) {
     if (!leagueId) return;
     setSubmitting(true);
 
+    const now = new Date();
     const phaseFixtures = GROUP_FIXTURES.filter((f) => f.phase === phase);
+    // Only submit picks for matches that haven't started — server hard-rejects started matches
     const phasePredictions = phaseFixtures
-      .filter((f) => predictions[f.matchNumber])
+      .filter((f) => predictions[f.matchNumber] && new Date(f.date) > now)
       .map((f) => ({ matchNumber: f.matchNumber, predictedWinner: predictions[f.matchNumber] }));
 
     if (phasePredictions.length === 0) {
-      setSnack({ msg: 'No predictions to submit', severity: 'error' });
+      setSnack({ msg: 'No picks to save — all remaining matches have already started', severity: 'error' });
       setSubmitting(false);
       return;
     }
+
+    // Warn if unstarted matches are missing picks (but still allow partial save)
+    const unstartedTotal = phaseFixtures.filter((f) => new Date(f.date) > now).length;
+    const missing = unstartedTotal - phasePredictions.length;
 
     try {
       const res = await fetch('/api/submit-prediction', {
@@ -639,7 +656,18 @@ export default function BracketPage({ params }: Props) {
       });
       const data = await res.json();
       if (res.ok) {
-        setSnack({ msg: `${data.count} picks saved!${data.isLate ? ' (late)' : ''}`, severity: 'success' });
+        // Sync saved snapshot so "unsaved changes" indicator clears
+        setSavedPredictions((prev) => {
+          const updated = { ...prev };
+          for (const p of phasePredictions) updated[p.matchNumber] = p.predictedWinner;
+          return updated;
+        });
+        const lateNote = data.isLate ? ' · marked late' : '';
+        const missingNote = missing > 0 ? ` · ${missing} match${missing === 1 ? '' : 'es'} still unpicked` : '';
+        setSnack({
+          msg: `${data.count} pick${data.count === 1 ? '' : 's'} saved${lateNote}${missingNote}`,
+          severity: missing > 0 ? 'warning' : 'success',
+        });
       } else {
         setSnack({ msg: data.error || 'Failed to save', severity: 'error' });
       }
@@ -660,6 +688,16 @@ export default function BracketPage({ params }: Props) {
 
   const totalGroupMatches = GROUP_FIXTURES.length;
   const completedGroupMatches = GROUP_FIXTURES.filter((f) => predictions[f.matchNumber]).length;
+
+  const nowRender = new Date();
+  const unstartedFixtures = GROUP_FIXTURES.filter((f) => new Date(f.date) > nowRender);
+  const unstartedWithPicks = unstartedFixtures.filter((f) => predictions[f.matchNumber]).length;
+  const startedCount = totalGroupMatches - unstartedFixtures.length;
+
+  // True if any unstarted match has a local pick that differs from what's in the DB
+  const hasUnsavedChanges = unstartedFixtures.some(
+    (f) => predictions[f.matchNumber] !== savedPredictions[f.matchNumber],
+  );
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: 4 }}>
@@ -688,13 +726,24 @@ export default function BracketPage({ params }: Props) {
           </Box>
 
           {/* Progress */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Typography variant="body2" color="text.secondary">
-              Group stage progress:
+              Group stage picks:
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 700 }} color="secondary.main">
               {completedGroupMatches}/{totalGroupMatches}
             </Typography>
+            {startedCount > 0 && (
+              <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.8rem' }}>
+                · {unstartedWithPicks}/{unstartedFixtures.length} for upcoming matches
+                {unstartedWithPicks === unstartedFixtures.length && unstartedFixtures.length > 0 && (
+                  <Box component="span" sx={{ ml: 0.5, color: 'success.main', fontWeight: 700 }}>✓ all covered</Box>
+                )}
+              </Typography>
+            )}
+            {completedGroupMatches === totalGroupMatches && startedCount === 0 && (
+              <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>✓ all submitted</Typography>
+            )}
           </Box>
 
           {/* AI Autopick + Copy Picks */}
@@ -769,18 +818,23 @@ export default function BracketPage({ params }: Props) {
         )}
 
         {/* Save all button */}
-        <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+        <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
           <Button
             variant="contained"
             size="large"
             onClick={() => handleSubmit('group')}
-            disabled={submitting || completedGroupMatches === 0 || !isVerified}
+            disabled={submitting || unstartedWithPicks === 0 || !isVerified}
             title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
             sx={{ px: 4 }}
           >
             {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
-            Save All Group Stage Picks ({completedGroupMatches})
+            {isPastDeadline ? `Update Picks (${unstartedWithPicks} upcoming)` : `Save All Picks (${completedGroupMatches}/${totalGroupMatches})`}
           </Button>
+          {hasUnsavedChanges && (
+            <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600 }}>
+              ● Unsaved changes
+            </Typography>
+          )}
         </Box>
 
         {/* Groups */}
@@ -852,7 +906,7 @@ export default function BracketPage({ params }: Props) {
                       fixture={fixture}
                       selected={predictions[fixture.matchNumber]}
                       onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
-                      disabled={false}
+                      disabled={matchHasStarted(fixture)}
                       chipActive={getChipForMatch(fixture.matchNumber)}
                       chipMode={chipMode}
                       onApplyChip={handleApplyChip}
@@ -880,7 +934,7 @@ export default function BracketPage({ params }: Props) {
                   fixture={fixture}
                   selected={predictions[fixture.matchNumber]}
                   onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
-                  disabled={false}
+                  disabled={matchHasStarted(fixture)}
                   chipActive={getChipForMatch(fixture.matchNumber)}
                   chipMode={chipMode}
                   onApplyChip={handleApplyChip}
@@ -899,15 +953,17 @@ export default function BracketPage({ params }: Props) {
             variant="contained"
             size="large"
             onClick={() => handleSubmit('group')}
-            disabled={submitting || completedGroupMatches === 0 || !isVerified}
+            disabled={submitting || unstartedWithPicks === 0 || !isVerified}
             title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
             sx={{ px: 6, py: 1.5 }}
           >
             {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : '✅ '}
-            Save All Picks
+            {isPastDeadline ? `Update Picks (${unstartedWithPicks} upcoming)` : 'Save All Picks'}
           </Button>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            You can come back and update until the deadline
+            {isPastDeadline
+              ? 'Picks for started matches are locked'
+              : 'You can come back and update until the deadline'}
           </Typography>
         </Box>
       </Container>
