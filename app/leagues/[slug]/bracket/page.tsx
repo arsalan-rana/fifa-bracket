@@ -36,7 +36,6 @@ import {
   GROUP_FIXTURES,
   TEAMS,
   PHASES,
-  getCurrentPhase,
   isPhasePastDeadline,
   type Fixture,
   type Phase,
@@ -413,7 +412,7 @@ export default function BracketPage({ params }: Props) {
   const [copySourceId, setCopySourceId] = useState('');
   const [copying, setCopying] = useState(false);
 
-  const currentPhase = getCurrentPhase();
+  const currentPhase: Phase = 'group';
   const phaseConfig = PHASES.find((p) => p.id === currentPhase)!;
   const isPastDeadline = isPhasePastDeadline(currentPhase);
 
