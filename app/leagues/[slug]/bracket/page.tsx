@@ -240,10 +240,9 @@ interface ChipsPanelProps {
   chips: ChipsState;
   chipMode: ChipType | null;
   onSelectChipMode: (mode: ChipType | null) => void;
-  onRemoveChip: (chipType: ChipType) => void;
 }
 
-function ChipsPanel({ phase, chips, chipMode, onSelectChipMode, onRemoveChip }: ChipsPanelProps) {
+function ChipsPanel({ phase, chips, chipMode, onSelectChipMode }: ChipsPanelProps) {
   const phaseConfig = PHASES.find((p) => p.id === phase)!;
   const availableChips = phaseConfig.chipsAvailable as ChipType[];
 
@@ -259,14 +258,6 @@ function ChipsPanel({ phase, chips, chipMode, onSelectChipMode, onRemoveChip }: 
     const t1 = TEAMS[fixture.team1];
     const t2 = TEAMS[fixture.team2];
     return `Match ${matchNumber}: ${t1?.flag ?? ''} ${t1?.code ?? fixture.team1} vs ${t2?.flag ?? ''} ${t2?.code ?? fixture.team2}`;
-  }
-
-  function canRemoveChip(chipType: ChipType): boolean {
-    const usage = getChipUsage(chipType);
-    if (!usage) return false;
-    const fixture = GROUP_FIXTURES.find((f) => f.matchNumber === usage.matchNumber);
-    if (!fixture) return false;
-    return !matchHasStarted(fixture);
   }
 
   const chipDefs: { type: ChipType; icon: string; name: string; description: string }[] = [
@@ -298,7 +289,6 @@ function ChipsPanel({ phase, chips, chipMode, onSelectChipMode, onRemoveChip }: 
           const usage = getChipUsage(type);
           const isUsed = !!usage;
           const isActive = chipMode === type;
-          const removable = canRemoveChip(type);
 
           return (
             <Box
@@ -324,13 +314,14 @@ function ChipsPanel({ phase, chips, chipMode, onSelectChipMode, onRemoveChip }: 
                 </Typography>
                 {isUsed && (
                   <Chip
-                    label="Used"
+                    label="🔒 Locked"
                     size="small"
                     sx={{
                       height: 16,
                       fontSize: '0.6rem',
-                      bgcolor: 'action.hover',
-                      color: 'text.secondary',
+                      bgcolor: 'rgba(201,167,58,0.2)',
+                      color: '#C9A73A',
+                      fontWeight: 700,
                     }}
                   />
                 )}
@@ -353,21 +344,20 @@ function ChipsPanel({ phase, chips, chipMode, onSelectChipMode, onRemoveChip }: 
               </Typography>
 
               {isUsed ? (
-                <Box>
-                  <Typography variant="caption" sx={{ color: '#C9A73A', display: 'block', mb: 0.5 }}>
+                <Box
+                  sx={{
+                    p: 1,
+                    borderRadius: 1,
+                    bgcolor: 'rgba(201,167,58,0.08)',
+                    border: '1px solid rgba(201,167,58,0.3)',
+                  }}
+                >
+                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.25, fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Applied to
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#C9A73A', display: 'block', fontWeight: 700, fontSize: '0.75rem' }}>
                     {getMatchLabel(usage.matchNumber)}
                   </Typography>
-                  {removable && (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="warning"
-                      onClick={() => onRemoveChip(type)}
-                      sx={{ fontSize: '0.7rem', py: 0.25, px: 1, minHeight: 0 }}
-                    >
-                      Change
-                    </Button>
-                  )}
                 </Box>
               ) : (
                 <Button
@@ -551,16 +541,6 @@ export default function BracketPage({ params }: Props) {
     },
     [chipMode, leagueId, currentPhase, chipSubmitting],
   );
-
-  function handleRemoveChip(chipType: ChipType) {
-    // Enter chip mode for re-placement (remove from local state, let user pick new match)
-    setChips((prev) => {
-      const next = { ...prev };
-      delete next[`${currentPhase}:${chipType}`];
-      return next;
-    });
-    setChipMode(chipType);
-  }
 
   function handleAutoPick() {
     const phaseFixtures = GROUP_FIXTURES.filter((f) => f.phase === currentPhase);
@@ -806,7 +786,6 @@ export default function BracketPage({ params }: Props) {
             chips={chips}
             chipMode={chipMode}
             onSelectChipMode={setChipMode}
-            onRemoveChip={handleRemoveChip}
           />
         )}
 
