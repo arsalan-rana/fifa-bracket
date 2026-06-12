@@ -725,7 +725,7 @@ export default function BracketPage({ params }: Props) {
               sx={{ background: `${phaseConfig.color}22`, color: phaseConfig.color, fontWeight: 700 }}
             />
             {isPastDeadline ? (
-              <Chip label="⏰ Deadline passed — late submissions" color="warning" />
+              <Chip label="🔒 Locked — deadline passed" color="error" />
             ) : (
               <Chip
                 label={`⏳ Deadline: ${new Date(phaseConfig.deadline).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York', timeZoneName: 'short' })}`}
@@ -756,39 +756,39 @@ export default function BracketPage({ params }: Props) {
             )}
           </Box>
 
-          {/* AI Autopick + Copy Picks */}
-          <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-            {!isPastDeadline && isVerified && GROUP_FIXTURES.filter((f) => f.phase === currentPhase && !predictions[f.matchNumber] && f.aiPrediction).length > 0 && (
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={handleAutoPick}
-                sx={{ fontWeight: 700, borderRadius: 2, fontSize: '0.8rem' }}
-              >
-                ✨ Fill with AI Picks
-              </Button>
-            )}
-            {isVerified && (
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />}
-                onClick={handleOpenCopy}
-                sx={{ fontWeight: 700, borderRadius: 2, fontSize: '0.8rem' }}
-              >
-                Copy from another league
-              </Button>
-            )}
-          </Box>
+          {/* AI Autopick + Copy Picks — hidden after deadline */}
           {!isPastDeadline && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-              Review and save when ready.
-            </Typography>
+            <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+              {isVerified && GROUP_FIXTURES.filter((f) => f.phase === currentPhase && !predictions[f.matchNumber] && f.aiPrediction).length > 0 && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={handleAutoPick}
+                  sx={{ fontWeight: 700, borderRadius: 2, fontSize: '0.8rem' }}
+                >
+                  ✨ Fill with AI Picks
+                </Button>
+              )}
+              {isVerified && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />}
+                  onClick={handleOpenCopy}
+                  sx={{ fontWeight: 700, borderRadius: 2, fontSize: '0.8rem' }}
+                >
+                  Copy from another league
+                </Button>
+              )}
+              <Typography variant="caption" color="text.secondary">
+                Review and save when ready.
+              </Typography>
+            </Box>
           )}
 
           {isPastDeadline && (
-            <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
-              The deadline has passed. Submissions will be marked as late and may incur a penalty.
+            <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
+              🔒 Picks are locked. The deadline has passed and no further changes are accepted.
             </Alert>
           )}
 
@@ -827,25 +827,27 @@ export default function BracketPage({ params }: Props) {
           </Alert>
         )}
 
-        {/* Save all button */}
-        <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Button
-            variant="contained"
-            size="large"
-            onClick={() => handleSubmit('group')}
-            disabled={submitting || unstartedWithPicks === 0 || !isVerified}
-            title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
-            sx={{ px: 4 }}
-          >
-            {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
-            {isPastDeadline ? `Update Picks (${unstartedWithPicks} upcoming)` : `Save All Picks (${completedGroupMatches}/${totalGroupMatches})`}
-          </Button>
-          {hasUnsavedChanges && (
-            <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600 }}>
-              ● Unsaved changes
-            </Typography>
-          )}
-        </Box>
+        {/* Save all button — hidden after deadline */}
+        {!isPastDeadline && (
+          <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={() => handleSubmit('group')}
+              disabled={submitting || unstartedWithPicks === 0 || !isVerified}
+              title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
+              sx={{ px: 4 }}
+            >
+              {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
+              {`Save All Picks (${completedGroupMatches}/${totalGroupMatches})`}
+            </Button>
+            {hasUnsavedChanges && (
+              <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600 }}>
+                ● Unsaved changes
+              </Typography>
+            )}
+          </Box>
+        )}
 
         {/* Groups */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>

@@ -36,6 +36,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const phaseIsLate = isPhasePastDeadline(phase);
   const phaseConfig = getPhaseConfig(phase);
 
+  if (phaseIsLate) {
+    return res.status(423).json({ error: 'The deadline has passed — picks are locked.' });
+  }
+
   // Pre-fetch wildcard chips to exempt specific matches from the late penalty
   const wildcardChips = await db.chipUsage.findMany({
     where: { userId: user.id, leagueId, chipType: 'wildcard' },
