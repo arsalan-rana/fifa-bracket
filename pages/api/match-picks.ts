@@ -27,7 +27,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const predictions = await db.prediction.findMany({
-    where: { leagueId, matchNumber: { in: pastDeadlineMatchNumbers } },
+    where: {
+      leagueId,
+      matchNumber: { in: pastDeadlineMatchNumbers },
+      user: { memberships: { some: { leagueId } } },
+    },
     include: { user: { select: { name: true, image: true, email: true } } },
   });
 

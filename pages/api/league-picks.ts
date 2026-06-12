@@ -32,6 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     where: {
       leagueId,
       matchNumber: { in: phaseMatchNumbers },
+      user: { memberships: { some: { leagueId } } },
     },
     select: {
       matchNumber: true,
