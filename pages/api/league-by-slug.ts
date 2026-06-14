@@ -42,6 +42,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     buyInAmount: league.buyInAmount ? Number(league.buyInAmount) : null,
     buyInCurrency: league.buyInCurrency,
     scoreEnabled: league.scoreEnabled,
+    allowLateSubmission: league.allowLateSubmission,
+    disableLatePenalty: league.disableLatePenalty,
     isVerified: isMember?.isVerified ?? true,
     memberCount: league._count.members,
     members: members.map((m) => ({ name: m.user.name, email: m.user.email, image: m.user.image })),

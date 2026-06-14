@@ -39,6 +39,8 @@ interface LeagueDashboardProps {
     buyInAmount?: number | string | null;
     buyInCurrency: string;
     scoreEnabled: boolean;
+    allowLateSubmission: boolean;
+    disableLatePenalty: boolean;
     members: {
       userId: string;
       isVerified: boolean;
@@ -96,6 +98,10 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
   const [scoreEnabledState, setScoreEnabledState] = useState(league.scoreEnabled);
   const [savingScore, setSavingScore] = useState(false);
   const [scoreMsg, setScoreMsg] = useState('');
+  const [allowLateSubmission, setAllowLateSubmission] = useState(league.allowLateSubmission);
+  const [disableLatePenalty, setDisableLatePenalty] = useState(league.disableLatePenalty);
+  const [savingLate, setSavingLate] = useState(false);
+  const [lateMsg, setLateMsg] = useState('');
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -238,6 +244,29 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
       }
     } finally {
       setSavingScore(false);
+    }
+  }
+
+  async function handleSaveLate() {
+    setSavingLate(true);
+    setLateMsg('');
+    try {
+      const res = await fetch('/api/update-league', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leagueId: league.id,
+          isPrizePool: prizePoolEnabled,
+          buyInAmount: prizePoolEnabled ? parseFloat(buyInAmount) : null,
+          buyInCurrency: 'CAD',
+          allowLateSubmission,
+          disableLatePenalty,
+        }),
+      });
+      if (res.ok) { setLateMsg('Saved'); router.refresh(); }
+      else { const d = await res.json(); setLateMsg(d.error || 'Failed'); }
+    } finally {
+      setSavingLate(false);
     }
   }
 
@@ -775,6 +804,62 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
                     {scoreMsg && (
                       <Typography variant="caption" color={scoreMsg === 'Saved' ? 'success.main' : 'error.main'} sx={{ display: 'block', mt: 0.5 }}>
                         {scoreMsg}
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Divider sx={{ my: 1.5 }} />
+
+                  {/* Late submission toggle */}
+                  <Box sx={{ mb: 2 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={allowLateSubmission}
+                          onChange={(e) => { setAllowLateSubmission(e.target.checked); setLateMsg(''); }}
+                          color="warning"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>Allow Late Bracket Submission</Typography>
+                          <Typography variant="caption" color="text.secondary">Members can submit picks after the deadline (only unstarted matches)</Typography>
+                        </Box>
+                      }
+                    />
+                    {allowLateSubmission && (
+                      <FormControlLabel
+                        sx={{ mt: 0.5, ml: 2 }}
+                        control={
+                          <Switch
+                            checked={disableLatePenalty}
+                            onChange={(e) => { setDisableLatePenalty(e.target.checked); setLateMsg(''); }}
+                            color="success"
+                            size="small"
+                          />
+                        }
+                        label={
+                          <Box>
+                            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>Waive Late Penalty</Typography>
+                            <Typography variant="caption" color="text.secondary">Late picks count normally — no penalty applied</Typography>
+                          </Box>
+                        }
+                      />
+                    )}
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="warning"
+                      fullWidth
+                      onClick={handleSaveLate}
+                      disabled={savingLate}
+                      sx={{ mt: 1 }}
+                    >
+                      {savingLate ? 'Saving…' : 'Save Late Submission Settings'}
+                    </Button>
+                    {lateMsg && (
+                      <Typography variant="caption" color={lateMsg === 'Saved' ? 'success.main' : 'error.main'} sx={{ display: 'block', mt: 0.5 }}>
+                        {lateMsg}
                       </Typography>
                     )}
                   </Box>

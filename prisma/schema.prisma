@@ -18,7 +18,9 @@ model League {
   isPrizePool      Boolean            @default(false)
   buyInAmount      Decimal?           @db.Decimal(10, 2)
   buyInCurrency    String             @default("CAD")
-  scoreEnabled     Boolean            @default(false)
+  scoreEnabled          Boolean            @default(false)
+  allowLateSubmission   Boolean            @default(false)
+  disableLatePenalty    Boolean            @default(false)
   members          LeagueMember[]
   predictions      Prediction[]
   bonusPredictions BonusPrediction[]

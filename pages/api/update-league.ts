@@ -9,13 +9,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.email) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { leagueId, isPrizePool, buyInAmount, buyInCurrency, resetVerification, scoreEnabled } = req.body as {
+  const { leagueId, isPrizePool, buyInAmount, buyInCurrency, resetVerification, scoreEnabled, allowLateSubmission, disableLatePenalty } = req.body as {
     leagueId: string;
     isPrizePool: boolean;
     buyInAmount?: number | null;
     buyInCurrency?: string;
     resetVerification?: boolean;
     scoreEnabled?: boolean;
+    allowLateSubmission?: boolean;
+    disableLatePenalty?: boolean;
   };
   if (!leagueId) return res.status(400).json({ error: 'leagueId required' });
 
@@ -41,6 +43,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       buyInAmount: isPrizePool ? buyInAmount : null,
       buyInCurrency: buyInCurrency ?? 'CAD',
       ...(scoreEnabled !== undefined && { scoreEnabled }),
+      ...(allowLateSubmission !== undefined && { allowLateSubmission }),
+      ...(disableLatePenalty !== undefined && { disableLatePenalty }),
     },
   });
 

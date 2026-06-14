@@ -402,6 +402,7 @@ export default function BracketPage({ params }: Props) {
   const [chipSubmitting, setChipSubmitting] = useState(false);
   const [leagueId, setLeagueId] = useState('');
   const [isVerified, setIsVerified] = useState(true);
+  const [allowLateSubmission, setAllowLateSubmission] = useState(false);
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' | 'warning' } | null>(null);
   const [expanded, setExpanded] = useState<string>('group-A');
   const [groupBy, setGroupBy] = useState<'group' | 'date'>('group');
@@ -436,6 +437,7 @@ export default function BracketPage({ params }: Props) {
         setLeagueId(leagueData.id);
         setIsVerified(leagueData.isVerified !== false);
         setLeagueMemberCount(leagueData.memberCount ?? 1);
+        setAllowLateSubmission(!!leagueData.allowLateSubmission);
 
         // Get existing predictions
         const predRes = await fetch(`/api/get-predictions?leagueId=${leagueData.id}`);
@@ -704,8 +706,10 @@ export default function BracketPage({ params }: Props) {
               label={`${phaseConfig.icon} ${phaseConfig.name} Active`}
               sx={{ background: `${phaseConfig.color}22`, color: phaseConfig.color, fontWeight: 700 }}
             />
-            {isPastDeadline ? (
+            {isPastDeadline && !allowLateSubmission ? (
               <Chip label="🔒 Locked — deadline passed" color="error" />
+            ) : isPastDeadline && allowLateSubmission ? (
+              <Chip label="⚠️ Late submission — only upcoming matches" color="warning" />
             ) : (
               <Chip
                 label={`⏳ Deadline: ${new Date(phaseConfig.deadline).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York', timeZoneName: 'short' })}`}
@@ -766,9 +770,14 @@ export default function BracketPage({ params }: Props) {
             </Box>
           )}
 
-          {isPastDeadline && (
+          {isPastDeadline && !allowLateSubmission && (
             <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
               🔒 Picks are locked. The deadline has passed and no further changes are accepted.
+            </Alert>
+          )}
+          {isPastDeadline && allowLateSubmission && (
+            <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
+              ⚠️ Late submission is open for this league. You can only pick matches that haven't started yet — past matches are locked.
             </Alert>
           )}
 
@@ -806,8 +815,8 @@ export default function BracketPage({ params }: Props) {
           </Alert>
         )}
 
-        {/* Save all button — hidden after deadline */}
-        {!isPastDeadline && (
+        {/* Save all button — hidden after deadline (unless late submission open) */}
+        {(!isPastDeadline || allowLateSubmission) && (
           <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
             <Button
               variant="contained"

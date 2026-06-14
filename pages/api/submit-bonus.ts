@@ -23,15 +23,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const user = await db.user.findUnique({ where: { email: session.user.email } });
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  const isMember = await db.leagueMember.findUnique({
-    where: { leagueId_userId: { leagueId, userId: user.id } },
-  });
+  const [isMember, league] = await Promise.all([
+    db.leagueMember.findUnique({ where: { leagueId_userId: { leagueId, userId: user.id } } }),
+    db.league.findUnique({ where: { id: leagueId }, select: { allowLateSubmission: true } }),
+  ]);
   if (!isMember) return res.status(403).json({ error: 'Not a league member' });
   if (!isMember.isVerified) {
     return res.status(403).json({ error: 'Payment not verified. Please e-transfer the buy-in to the league owner.' });
   }
 
-  if (isPhasePastDeadline('group')) {
+  if (isPhasePastDeadline('group') && !league?.allowLateSubmission) {
     return res.status(400).json({ error: 'Bonus predictions are locked — the group stage has already started' });
   }
 

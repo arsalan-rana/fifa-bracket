@@ -25,9 +25,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const user = await db.user.findUnique({ where: { email: session.user.email } });
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  const isMember = await db.leagueMember.findUnique({
-    where: { leagueId_userId: { leagueId, userId: user.id } },
-  });
+  const [isMember, league] = await Promise.all([
+    db.leagueMember.findUnique({ where: { leagueId_userId: { leagueId, userId: user.id } } }),
+    db.league.findUnique({ where: { id: leagueId }, select: { allowLateSubmission: true, disableLatePenalty: true } }),
+  ]);
   if (!isMember) return res.status(403).json({ error: 'Not a league member' });
   if (!isMember.isVerified) {
     return res.status(403).json({ error: 'Payment not verified. Please e-transfer the buy-in to the league owner.' });
@@ -36,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const phaseIsLate = isPhasePastDeadline(phase);
   const phaseConfig = getPhaseConfig(phase);
 
-  if (phaseIsLate) {
+  if (phaseIsLate && !league?.allowLateSubmission) {
     return res.status(423).json({ error: 'The deadline has passed — picks are locked.' });
   }
 
@@ -89,7 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Upsert each prediction; wildcard chip exempts a match from the late penalty
     await db.$transaction(
       predsToSave.map((pred) => {
-        const isLate = phaseIsLate && !wildcardMatchNumbers.has(pred.matchNumber);
+        const isLate = phaseIsLate && !wildcardMatchNumbers.has(pred.matchNumber) && !league?.disableLatePenalty;
         return db.prediction.upsert({
           where: {
             userId_leagueId_matchNumber: {

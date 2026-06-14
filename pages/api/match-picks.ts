@@ -60,5 +60,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  return res.status(200).json({ picks, scores });
+  const fixtureResults = await db.fixtureResult.findMany({
+    select: { matchNumber: true, result: true, goals1: true, goals2: true },
+  });
+  const results: Record<number, { result: string; goals1: number | null; goals2: number | null }> = {};
+  for (const r of fixtureResults) {
+    results[r.matchNumber] = { result: r.result, goals1: r.goals1, goals2: r.goals2 };
+  }
+
+  return res.status(200).json({ picks, scores, results });
 }

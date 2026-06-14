@@ -1,0 +1,2 @@
+ALTER TABLE "League" ADD COLUMN "allowLateSubmission" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "League" ADD COLUMN "disableLatePenalty" BOOLEAN NOT NULL DEFAULT false;

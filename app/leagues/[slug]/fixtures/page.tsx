@@ -86,6 +86,7 @@ function renderCommentText(text: string) {
 type Picker = { name: string; image: string | null; email: string; goals1?: number | null; goals2?: number | null };
 type Picks = Record<number, Record<string, Picker[]>>;
 type Scores = Record<number, { name: string; image: string | null; goals1: number; goals2: number }[]>;
+type MatchResults = Record<number, { result: string; goals1: number | null; goals2: number | null }>;
 
 interface MyPrediction {
   predictedWinner: string;
@@ -114,7 +115,12 @@ function timeAgo(dateStr: string) {
 
 // ─── Picks Section ────────────────────────────────────────────────────────────
 
-function PicksSection({ fixture, picksForMatch, scoresForMatch }: { fixture: Fixture; picksForMatch: Record<string, Picker[]>; scoresForMatch: { name: string; image: string | null; goals1: number; goals2: number }[] }) {
+function PicksSection({ fixture, picksForMatch, scoresForMatch, matchResult }: {
+  fixture: Fixture;
+  picksForMatch: Record<string, Picker[]>;
+  scoresForMatch: { name: string; image: string | null; goals1: number; goals2: number }[];
+  matchResult: { result: string; goals1: number | null; goals2: number | null } | null;
+}) {
   const opts = [
     { code: fixture.team1 },
     ...(fixture.canDraw ? [{ code: 'DRAW' }] : []),
@@ -141,6 +147,50 @@ function PicksSection({ fixture, picksForMatch, scoresForMatch }: { fixture: Fix
         borderColor: 'divider',
       }}
     >
+      {/* Final result banner */}
+      {matchResult && (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2,
+            py: 1.5,
+            mb: 2,
+            borderRadius: 2,
+            background: 'linear-gradient(135deg, rgba(0,61,165,0.15) 0%, rgba(201,167,58,0.1) 100%)',
+            border: '1px solid rgba(201,167,58,0.2)',
+          }}
+        >
+          {/* Team 1 */}
+          <Box sx={{ textAlign: 'center', minWidth: 64 }}>
+            <Typography sx={{ fontSize: '1.6rem', lineHeight: 1 }}>{TEAMS[fixture.team1]?.flag ?? '🏳️'}</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block' }}>{TEAMS[fixture.team1]?.name ?? fixture.team1}</Typography>
+          </Box>
+          {/* Score / Result */}
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: 'text.disabled', display: 'block', fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: 1 }}>Full Time</Typography>
+            {matchResult.goals1 !== null && matchResult.goals2 !== null ? (
+              <Typography sx={{ fontWeight: 900, fontSize: '1.75rem', lineHeight: 1.1, color: 'secondary.main', letterSpacing: 2 }}>
+                {matchResult.goals1} – {matchResult.goals2}
+              </Typography>
+            ) : (
+              <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: 'secondary.main' }}>
+                {matchResult.result === 'DRAW' ? 'Draw' : `${TEAMS[matchResult.result]?.name ?? matchResult.result} wins`}
+              </Typography>
+            )}
+            {matchResult.result === 'DRAW' && matchResult.goals1 !== null && (
+              <Typography variant="caption" sx={{ color: 'text.disabled', display: 'block' }}>🤝 Draw</Typography>
+            )}
+          </Box>
+          {/* Team 2 */}
+          <Box sx={{ textAlign: 'center', minWidth: 64 }}>
+            <Typography sx={{ fontSize: '1.6rem', lineHeight: 1 }}>{TEAMS[fixture.team2]?.flag ?? '🏳️'}</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block' }}>{TEAMS[fixture.team2]?.name ?? fixture.team2}</Typography>
+          </Box>
+        </Box>
+      )}
+
       <Typography
         variant="caption"
         sx={{ display: 'block', fontWeight: 700, color: 'text.secondary', mb: 1.5, letterSpacing: 0.5, textTransform: 'uppercase', fontSize: '0.65rem' }}
@@ -595,6 +645,7 @@ interface MatchRowProps {
   scoresForMatch: { name: string; image: string | null; goals1: number; goals2: number }[];
   leagueId: string;
   members: Member[];
+  matchResult: { result: string; goals1: number | null; goals2: number | null } | null;
   myPrediction: MyPrediction | null;
   scoreEnabled: boolean;
   onToggleComments: () => void;
@@ -614,6 +665,7 @@ function MatchRow({
   scoresForMatch,
   leagueId,
   members,
+  matchResult,
   myPrediction,
   scoreEnabled,
   onToggleComments,
@@ -642,6 +694,14 @@ function MatchRow({
       : `${TEAMS[myPrediction.predictedWinner]?.flag ?? ''} ${TEAMS[myPrediction.predictedWinner]?.name ?? myPrediction.predictedWinner}`
     : null;
 
+  const resultTeam1 = matchResult ? TEAMS[fixture.team1] : null;
+  const resultTeam2 = matchResult ? TEAMS[fixture.team2] : null;
+  const hasResult = !!matchResult;
+  const resultHasScore = hasResult && matchResult.goals1 !== null && matchResult.goals2 !== null;
+  const myPickCorrect = hasResult && myPrediction
+    ? myPrediction.predictedWinner === matchResult.result
+    : null;
+
   return (
     <Box ref={rowRef} sx={{ borderBottom: isAnyOpen ? 'none' : '1px solid', borderColor: isAnyOpen ? 'transparent' : 'divider' }}>
       <Box
@@ -664,12 +724,44 @@ function MatchRow({
           </Typography>
         </Box>
 
-        {/* Match name + pick hint */}
+        {/* Match name + pick hint + result */}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="body2" noWrap>{label}</Typography>
+          {/* Actual match result */}
+          {hasResult && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 800,
+                  color: resultHasScore ? 'text.primary' : 'text.secondary',
+                  letterSpacing: 0.2,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {resultTeam1?.flag} {resultHasScore ? matchResult.goals1 : '–'}
+                {' · '}
+                {resultHasScore ? matchResult.goals2 : '–'} {resultTeam2?.flag}
+                {matchResult.result === 'DRAW' && ' 🤝'}
+              </Typography>
+              {myPickCorrect !== null && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: 700,
+                    color: myPickCorrect ? 'success.main' : 'error.main',
+                    fontSize: '0.7rem',
+                  }}
+                >
+                  {myPickCorrect ? '✓' : '✗'}
+                </Typography>
+              )}
+            </Box>
+          )}
+          {/* My pick */}
           {myPrediction && (
             <Typography variant="caption" color="text.disabled" noWrap sx={{ display: 'block', lineHeight: 1.4 }}>
-              {winnerLabel}{hasScore ? ` · ${myPrediction.goals1}–${myPrediction.goals2}` : ''}
+              My pick: {winnerLabel}{hasScore ? ` · ${myPrediction.goals1}–${myPrediction.goals2}` : ''}
             </Typography>
           )}
         </Box>
@@ -740,7 +832,7 @@ function MatchRow({
       {/* Picks panel */}
       {isPastDeadline && (
         <Collapse in={picksOpen} unmountOnExit>
-          <PicksSection fixture={fixture} picksForMatch={picksForMatch} scoresForMatch={scoresForMatch} />
+          <PicksSection fixture={fixture} picksForMatch={picksForMatch} scoresForMatch={scoresForMatch} matchResult={matchResult} />
         </Collapse>
       )}
 
@@ -765,6 +857,7 @@ export default function FixturesPage({ params }: Props) {
   const [leagueId, setLeagueId] = useState('');
   const [scoreEnabled, setScoreEnabled] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
+  const [matchResults, setMatchResults] = useState<MatchResults>({});
   const [comments, setComments] = useState<Comment[]>([]);
   const [picks, setPicks] = useState<Picks>({});
   const [scores, setScores] = useState<Scores>({});
@@ -793,6 +886,7 @@ export default function FixturesPage({ params }: Props) {
         const data = await pRes.json();
         setPicks(data.picks);
         setScores(data.scores ?? {});
+        setMatchResults(data.results ?? {});
       }
       if (myRes.ok) {
         const { predictions } = await myRes.json();
@@ -876,6 +970,7 @@ export default function FixturesPage({ params }: Props) {
         scoresForMatch={scores[fixture.matchNumber] ?? []}
         leagueId={leagueId}
         members={members}
+        matchResult={matchResults[fixture.matchNumber] ?? null}
         myPrediction={myPreds[fixture.matchNumber] ?? null}
         scoreEnabled={scoreEnabled}
         onToggleComments={() => toggleComments(fixture.matchNumber)}
