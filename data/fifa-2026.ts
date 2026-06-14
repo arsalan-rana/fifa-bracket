@@ -206,15 +206,15 @@ export const GROUP_FIXTURES: Fixture[] = [
   { matchNumber: 36, phase: 'group', group: 'F', team1: 'JPN', team2: 'SWE', venue: 'AT&T Stadium', city: 'Dallas', date: '2026-06-25T23:00:00Z', canDraw: true, aiPrediction: 'JPN' },
 
   // ── GROUP G ──
-  { matchNumber: 37, phase: 'group', group: 'G', team1: 'BEL', team2: 'EGY', venue: 'Lumen Field', city: 'Seattle', date: '2026-06-15T22:00:00Z', canDraw: true, aiPrediction: 'BEL' },
-  { matchNumber: 38, phase: 'group', group: 'G', team1: 'IRN', team2: 'NZL', venue: 'SoFi Stadium', city: 'Los Angeles', date: '2026-06-16T04:00:00Z', canDraw: true, aiPrediction: 'IRN' },
+  { matchNumber: 37, phase: 'group', group: 'G', team1: 'BEL', team2: 'EGY', venue: 'Lumen Field', city: 'Seattle', date: '2026-06-15T19:00:00Z', canDraw: true, aiPrediction: 'BEL' },
+  { matchNumber: 38, phase: 'group', group: 'G', team1: 'IRN', team2: 'NZL', venue: 'SoFi Stadium', city: 'Los Angeles', date: '2026-06-16T01:00:00Z', canDraw: true, aiPrediction: 'IRN' },
   { matchNumber: 39, phase: 'group', group: 'G', team1: 'BEL', team2: 'IRN', venue: 'SoFi Stadium', city: 'Los Angeles', date: '2026-06-21T19:00:00Z', canDraw: true, aiPrediction: 'BEL' },
   { matchNumber: 40, phase: 'group', group: 'G', team1: 'NZL', team2: 'EGY', venue: 'BC Place', city: 'Vancouver', date: '2026-06-22T01:00:00Z', canDraw: true, aiPrediction: 'EGY' },
   { matchNumber: 41, phase: 'group', group: 'G', team1: 'NZL', team2: 'BEL', venue: 'BC Place', city: 'Vancouver', date: '2026-06-27T03:00:00Z', canDraw: true, aiPrediction: 'BEL' },
   { matchNumber: 42, phase: 'group', group: 'G', team1: 'EGY', team2: 'IRN', venue: 'Lumen Field', city: 'Seattle', date: '2026-06-27T03:00:00Z', canDraw: true, aiPrediction: 'EGY' },
 
   // ── GROUP H ──
-  { matchNumber: 43, phase: 'group', group: 'H', team1: 'ESP', team2: 'CPV', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', date: '2026-06-15T17:00:00Z', canDraw: true, aiPrediction: 'ESP' },
+  { matchNumber: 43, phase: 'group', group: 'H', team1: 'ESP', team2: 'CPV', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', date: '2026-06-15T16:00:00Z', canDraw: true, aiPrediction: 'ESP' },
   { matchNumber: 44, phase: 'group', group: 'H', team1: 'SAU', team2: 'URU', venue: 'Hard Rock Stadium', city: 'Miami', date: '2026-06-15T22:00:00Z', canDraw: true, aiPrediction: 'URU' },
   { matchNumber: 45, phase: 'group', group: 'H', team1: 'ESP', team2: 'SAU', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', date: '2026-06-21T16:00:00Z', canDraw: true, aiPrediction: 'ESP' },
   { matchNumber: 46, phase: 'group', group: 'H', team1: 'URU', team2: 'CPV', venue: 'Hard Rock Stadium', city: 'Miami', date: '2026-06-21T22:00:00Z', canDraw: true, aiPrediction: 'URU' },
