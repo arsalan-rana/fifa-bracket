@@ -364,15 +364,18 @@ function CommentThread({
     const before = text.slice(0, cursor).replace(/@(\S*)$/, `@${firstName} `);
     const after = text.slice(cursor);
     const newText = (before + after).slice(0, 280);
+    const newCursor = before.length;
     setText(newText);
     setMentionAnchor(null);
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.selectionStart = before.length;
-        inputRef.current.selectionEnd = before.length;
-        inputRef.current.focus();
-      }
-    }, 0);
+    // Double rAF ensures React has re-rendered + painted before restoring cursor + focus
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.setSelectionRange(newCursor, newCursor);
+        }
+      });
+    });
   }
 
   const filteredMembers = mentionAnchor
@@ -446,6 +449,8 @@ function CommentThread({
                 borderRadius: 2,
                 overflow: 'hidden',
                 zIndex: 10,
+                maxHeight: 220,
+                overflowY: 'auto',
               }}
             >
               <List dense disablePadding>
@@ -501,9 +506,11 @@ function CommentThread({
                 ref: inputRef,
                 enterKeyHint: 'send',
                 autoCapitalize: 'sentences',
+                // 16px minimum prevents iOS Safari from zooming on focus
+                style: { fontSize: '16px' },
               },
             }}
-            sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.9rem', borderRadius: 3 } }}
+            sx={{ '& .MuiOutlinedInput-root': { fontSize: '1rem', borderRadius: 3 } }}
           />
           <IconButton
             onClick={submit}
