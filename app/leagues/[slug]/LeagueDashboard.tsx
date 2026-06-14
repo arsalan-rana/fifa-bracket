@@ -23,7 +23,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import HelpIcon from '@mui/icons-material/Help';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { PHASES, getCurrentPhase } from '../../../data/fifa-2026';
 
@@ -68,12 +68,21 @@ interface LeagueDashboardProps {
   };
 }
 
+interface TauntInfo {
+  id: string;
+  emoji: string;
+  label: string;
+  fromName: string;
+  isSelf: boolean;
+}
+
 export default function LeagueDashboard({ league, currentUserEmail, isAdmin, currentUserId, progress }: LeagueDashboardProps) {
   const router = useRouter();
   const currentMembership = league.members.find((m) => m.userId === currentUserId);
   const isCurrentUserVerified = currentMembership?.isVerified !== false;
   const isOwnerOrAdmin = currentUserId === league.ownerId || isAdmin;
   const [copied, setCopied] = useState(false);
+  const [taunts, setTaunts] = useState<Record<string, TauntInfo[]>>({});
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState('');
@@ -88,6 +97,13 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
   const [savingScore, setSavingScore] = useState(false);
   const [scoreMsg, setScoreMsg] = useState('');
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/get-taunts?leagueId=${league.id}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.taunts) setTaunts(d.taunts); })
+      .catch(() => {});
+  }, [league.id]);
 
   const currentPhase = getCurrentPhase();
   const phaseConfig = PHASES.find((p) => p.id === currentPhase);
@@ -510,12 +526,19 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
                         {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`}
                       </Typography>
                       <Avatar src={entry.user.image ?? undefined} sx={{ width: 28, height: 28 }} />
-                      <Typography variant="body2" sx={{ fontWeight: 600, flexGrow: 1 }}>
-                        {entry.user.name ?? entry.user.email}
-                        {entry.user.email === currentUserEmail && (
-                          <Chip label="you" size="small" sx={{ ml: 1, height: 16, fontSize: '0.65rem' }} />
-                        )}
-                      </Typography>
+                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {entry.user.name ?? entry.user.email}
+                          {entry.user.email === currentUserEmail && (
+                            <Chip label="you" size="small" sx={{ ml: 1, height: 16, fontSize: '0.65rem' }} />
+                          )}
+                        </Typography>
+                        {(taunts[entry.user.email] ?? []).map((t) => (
+                          <Typography key={t.id} variant="caption" color="text.disabled" sx={{ display: 'block', lineHeight: 1.3 }}>
+                            {t.emoji} {t.label}{!t.isSelf && ` · ${t.fromName}`}
+                          </Typography>
+                        ))}
+                      </Box>
                       <Typography variant="body2" sx={{ fontWeight: 700 }} color="secondary.main">
                         {entry.totalPoints} pts
                       </Typography>
