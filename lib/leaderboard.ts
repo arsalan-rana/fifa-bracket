@@ -191,5 +191,35 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
     )
   );
 
+  // Create rank-change notifications (skip first-time entries and ties with no movement)
+  const rankNotifications: { userId: string; leagueId: string; type: string; message: string }[] = [];
+  for (const entry of withRanks) {
+    const prevRank = prevRankMap.get(entry.userId);
+    if (prevRank === undefined || prevRank === entry.rank) continue;
+
+    let type: string;
+    let message: string;
+
+    if (entry.rank === 1 && prevRank !== 1) {
+      type = 'gained_lead';
+      message = `You're now leading the league! 🏆`;
+    } else if (prevRank === 1 && entry.rank !== 1) {
+      type = 'lost_lead';
+      message = `You've been knocked off the top spot 😤 (now #${entry.rank})`;
+    } else if (entry.rank < prevRank) {
+      type = 'rank_up';
+      message = `You moved up to rank #${entry.rank}! 📈`;
+    } else {
+      type = 'rank_down';
+      message = `You dropped to rank #${entry.rank} 📉`;
+    }
+
+    rankNotifications.push({ userId: entry.userId, leagueId, type, message });
+  }
+
+  if (rankNotifications.length > 0) {
+    await db.notification.createMany({ data: rankNotifications });
+  }
+
   return sorted.length;
 }

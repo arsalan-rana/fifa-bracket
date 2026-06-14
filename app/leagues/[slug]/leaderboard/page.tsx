@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useState, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -16,6 +16,9 @@ import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Button from '@mui/material/Button';
+import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -23,7 +26,10 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import RemoveIcon from '@mui/icons-material/Remove';
 import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import Badge from '@mui/material/Badge';
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -42,14 +48,24 @@ interface LeaderboardEntry {
   bonusPoints: number;
   scorePoints: number;
   penalty: number;
+  statusMessage: string | null;
   user: { name: string | null; email: string; image: string | null };
 }
 
+interface TauntReaction {
+  emoji: string;
+  count: number;
+  myReaction: boolean;
+}
+
 interface TauntInfo {
+  id: string;
   emoji: string;
   label: string;
   fromName: string;
   isSelf: boolean;
+  createdAt: string;
+  reactions: TauntReaction[];
 }
 
 const TAUNT_PRESETS = [
@@ -61,6 +77,8 @@ const TAUNT_PRESETS = [
   { emoji: '🤞', label: 'still got time' },
   { emoji: '🎰', label: 'this site is rigged' },
 ];
+
+const REACTION_EMOJIS = ['👏', '😭', '🔥', '💀', '🤣', '😤'];
 
 function RankDelta({ rank, prevRank }: { rank: number; prevRank: number | null }) {
   if (!prevRank || prevRank === rank) return <RemoveIcon sx={{ fontSize: 14, color: 'text.secondary' }} />;
@@ -76,13 +94,19 @@ export default function LeaderboardPage({ params }: Props) {
   const [loading, setLoading] = useState(true);
   const [leagueId, setLeagueId] = useState('');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  // taunts keyed by toUserId
-  // taunts keyed by toUser email
   const [taunts, setTaunts] = useState<Record<string, TauntInfo[]>>({});
-  // taunt dialog target
+  const [myActiveTaunts, setMyActiveTaunts] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Taunt dialog
   const [tauntTarget, setTauntTarget] = useState<{ email: string; name: string } | null>(null);
   const [sendingTaunt, setSendingTaunt] = useState(false);
   const [sentTaunt, setSentTaunt] = useState<string | null>(null);
+
+  // Status dialog
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusText, setStatusText] = useState('');
+  const [savingStatus, setSavingStatus] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -92,9 +116,10 @@ export default function LeaderboardPage({ params }: Props) {
         const leagueData = await leagueRes.json();
         setLeagueId(leagueData.id);
 
-        const [lbRes, tauntRes] = await Promise.all([
+        const [lbRes, tauntRes, notifRes] = await Promise.all([
           fetch(`/api/get-leaderboard?leagueId=${leagueData.id}`),
           fetch(`/api/get-taunts?leagueId=${leagueData.id}`),
+          fetch(`/api/notifications?leagueId=${leagueData.id}`),
         ]);
 
         if (lbRes.ok) {
@@ -104,6 +129,11 @@ export default function LeaderboardPage({ params }: Props) {
         if (tauntRes.ok) {
           const data = await tauntRes.json();
           setTaunts(data.taunts);
+          setMyActiveTaunts(data.myActiveTaunts ?? 0);
+        }
+        if (notifRes.ok) {
+          const data = await notifRes.json();
+          setUnreadCount(data.unreadCount ?? 0);
         }
       } finally {
         setLoading(false);
@@ -111,8 +141,6 @@ export default function LeaderboardPage({ params }: Props) {
     }
     load();
   }, [slug]);
-
-  const isSelfTaunt = tauntTarget?.email === session?.user?.email;
 
   async function sendTaunt(emoji: string, label: string) {
     if (!tauntTarget || sendingTaunt) return;
@@ -125,23 +153,90 @@ export default function LeaderboardPage({ params }: Props) {
       });
       if (res.ok) {
         const newTaunt: TauntInfo = {
+          id: `temp-${Date.now()}`,
           emoji,
           label,
           fromName: session?.user?.name ?? session?.user?.email ?? 'You',
-          isSelf: isSelfTaunt,
+          isSelf: false,
+          createdAt: new Date().toISOString(),
+          reactions: [],
         };
         setTaunts((prev) => ({
           ...prev,
           [tauntTarget.email]: [newTaunt, ...(prev[tauntTarget.email] ?? [])].slice(0, 5),
         }));
+        setMyActiveTaunts((n) => n + 1);
         setSentTaunt(emoji);
         setTimeout(() => {
           setSentTaunt(null);
           setTauntTarget(null);
         }, 1200);
+      } else if (res.status === 429) {
+        alert('You already have 2 active taunts. Wait for one to expire (24h) before sending another.');
+        setTauntTarget(null);
       }
     } finally {
       setSendingTaunt(false);
+    }
+  }
+
+  async function reactToTaunt(tauntId: string, toEmail: string, emoji: string) {
+    const res = await fetch('/api/react-taunt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tauntId, emoji }),
+    });
+    if (!res.ok) return;
+    const { action } = await res.json();
+
+    setTaunts((prev) => {
+      const list = prev[toEmail] ?? [];
+      return {
+        ...prev,
+        [toEmail]: list.map((t) => {
+          if (t.id !== tauntId) return t;
+          const myOldEmoji = t.reactions.find((r) => r.myReaction)?.emoji;
+          const updated = t.reactions.map((r) => {
+            if (r.emoji === emoji) {
+              return {
+                ...r,
+                count: action === 'removed' ? r.count - 1 : r.count + (myOldEmoji === emoji ? 0 : 1),
+                myReaction: action !== 'removed' && r.emoji === emoji,
+              };
+            }
+            if (r.emoji === myOldEmoji && action !== 'removed') {
+              return { ...r, count: Math.max(0, r.count - 1), myReaction: false };
+            }
+            return r;
+          });
+          // If emoji not in list yet, add it
+          if (!updated.find((r) => r.emoji === emoji)) {
+            updated.push({ emoji, count: 1, myReaction: true });
+          }
+          return { ...t, reactions: updated.filter((r) => r.count > 0) };
+        }),
+      };
+    });
+  }
+
+  async function saveStatus() {
+    setSavingStatus(true);
+    try {
+      await fetch('/api/set-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId, message: statusText }),
+      });
+      // Update local entry
+      const myEmail = session?.user?.email;
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.user.email === myEmail ? { ...e, statusMessage: statusText || null } : e
+        )
+      );
+      setStatusDialogOpen(false);
+    } finally {
+      setSavingStatus(false);
     }
   }
 
@@ -158,9 +253,31 @@ export default function LeaderboardPage({ params }: Props) {
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: 4 }}>
       <Container maxWidth="lg">
-        <Typography variant="h4" sx={{ fontWeight: 800 }} gutterBottom>
-          🏆 Leaderboard
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>
+            🏆 Leaderboard
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {myActiveTaunts > 0 && (
+              <Chip
+                label={`${myActiveTaunts}/2 taunts active`}
+                size="small"
+                color={myActiveTaunts >= 2 ? 'error' : 'warning'}
+                sx={{ fontSize: '0.7rem' }}
+              />
+            )}
+            <IconButton
+              component={Link}
+              href={`/leagues/${slug}/notifications`}
+              size="small"
+              sx={{ color: 'text.secondary' }}
+            >
+              <Badge badgeContent={unreadCount} color="error" max={9}>
+                <NotificationsIcon fontSize="small" />
+              </Badge>
+            </IconButton>
+          </Box>
+        </Box>
 
         {entries.length === 0 ? (
           <Card sx={{ p: 4, textAlign: 'center' }}>
@@ -228,20 +345,96 @@ export default function LeaderboardPage({ params }: Props) {
                                   <Chip label="you" size="small" sx={{ ml: 1, height: 16, fontSize: '0.6rem' }} />
                                 )}
                               </Typography>
-                              {receivedTaunts.map((t, i) => (
-                                <Typography key={i} variant="caption" color="text.disabled" sx={{ lineHeight: 1.3, display: 'block' }}>
-                                  {t.emoji} {t.label}{!t.isSelf && ` · from ${t.fromName}`}
+                              {/* Status message */}
+                              {entry.statusMessage && (
+                                <Typography variant="caption" color="secondary.main" sx={{ lineHeight: 1.3, display: 'block', fontStyle: 'italic' }}>
+                                  💬 {entry.statusMessage}
                                 </Typography>
+                              )}
+                              {/* Taunts */}
+                              {receivedTaunts.map((t) => (
+                                <Box key={t.id}>
+                                  <Typography variant="caption" color="text.disabled" sx={{ lineHeight: 1.3, display: 'block' }}>
+                                    {t.emoji} {t.label}{!t.isSelf && ` · from ${t.fromName}`}
+                                  </Typography>
+                                  {/* Reactions row */}
+                                  {t.reactions.length > 0 && (
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25, mt: 0.25 }}>
+                                      {t.reactions.map((r) => (
+                                        <Chip
+                                          key={r.emoji}
+                                          label={`${r.emoji} ${r.count}`}
+                                          size="small"
+                                          onClick={(e) => { e.stopPropagation(); reactToTaunt(t.id, entry.user.email, r.emoji); }}
+                                          sx={{
+                                            height: 18,
+                                            fontSize: '0.65rem',
+                                            bgcolor: r.myReaction ? 'rgba(201,167,58,0.25)' : 'rgba(255,255,255,0.05)',
+                                            border: r.myReaction ? '1px solid rgba(201,167,58,0.5)' : '1px solid transparent',
+                                            cursor: 'pointer',
+                                            '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
+                                          }}
+                                        />
+                                      ))}
+                                      {/* Add reaction button */}
+                                      <Chip
+                                        label="+"
+                                        size="small"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const pick = window.prompt(`React with: ${REACTION_EMOJIS.join(' ')}`);
+                                          if (pick && REACTION_EMOJIS.includes(pick.trim())) {
+                                            reactToTaunt(t.id, entry.user.email, pick.trim());
+                                          }
+                                        }}
+                                        sx={{ height: 18, fontSize: '0.65rem', cursor: 'pointer', color: 'text.disabled' }}
+                                      />
+                                    </Box>
+                                  )}
+                                  {t.reactions.length === 0 && (
+                                    <Box>
+                                      {REACTION_EMOJIS.map((emoji) => (
+                                        <Typography
+                                          key={emoji}
+                                          component="span"
+                                          onClick={(e) => { e.stopPropagation(); reactToTaunt(t.id, entry.user.email, emoji); }}
+                                          sx={{ fontSize: '0.75rem', cursor: 'pointer', opacity: 0.4, '&:hover': { opacity: 1 }, mr: 0.25 }}
+                                        >
+                                          {emoji}
+                                        </Typography>
+                                      ))}
+                                    </Box>
+                                  )}
+                                </Box>
                               ))}
                             </Box>
                             {session && (
-                              <Chip
-                                label={isMe ? '📣' : '⚡'}
-                                size="small"
-                                onClick={(e) => { e.stopPropagation(); setTauntTarget({ email: entry.user.email, name: entry.user.name ?? entry.user.email.split('@')[0] }); }}
-                                title={isMe ? 'Set status' : 'Send a taunt'}
-                                sx={{ flexShrink: 0, cursor: 'pointer', fontSize: '0.75rem', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
-                              />
+                              <>
+                                {isMe ? (
+                                  <Chip
+                                    label="📣"
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setStatusText(entry.statusMessage ?? '');
+                                      setStatusDialogOpen(true);
+                                    }}
+                                    title="Set your status"
+                                    sx={{ flexShrink: 0, cursor: 'pointer', fontSize: '0.75rem', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
+                                  />
+                                ) : (
+                                  <Chip
+                                    label="⚡"
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTauntTarget({ email: entry.user.email, name: entry.user.name ?? entry.user.email.split('@')[0] });
+                                    }}
+                                    title="Send a taunt"
+                                    sx={{ flexShrink: 0, cursor: 'pointer', fontSize: '0.75rem', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
+                                  />
+                                )}
+                              </>
                             )}
                           </Box>
                         </TableCell>
@@ -281,7 +474,7 @@ export default function LeaderboardPage({ params }: Props) {
                                 { label: 'Knockouts', value: knockoutPts },
                                 { label: 'Scores', value: entry.scorePoints ?? 0, color: entry.scorePoints > 0 ? 'secondary.main' : undefined },
                                 { label: 'Bonus', value: entry.bonusPoints, color: entry.bonusPoints > 0 ? 'success.main' : undefined },
-                                { label: 'Penalty', value: -entry.penalty, color: entry.penalty > 0 ? 'error.main' : undefined, prefix: entry.penalty > 0 ? '' : undefined },
+                                { label: 'Penalty', value: -entry.penalty, color: entry.penalty > 0 ? 'error.main' : undefined },
                               ].map(({ label, value, color }) => (
                                 <Box key={label} sx={{ textAlign: 'center', minWidth: 56 }}>
                                   <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
@@ -314,7 +507,7 @@ export default function LeaderboardPage({ params }: Props) {
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            {sentTaunt ? `${sentTaunt} Done!` : isSelfTaunt ? '📣 Set your status' : `Taunt ${tauntTarget?.name}`}
+            {sentTaunt ? `${sentTaunt} Done!` : `Taunt ${tauntTarget?.name}`}
           </Typography>
           <IconButton size="small" onClick={() => setTauntTarget(null)} disabled={sendingTaunt}>
             <CloseIcon fontSize="small" />
@@ -324,33 +517,84 @@ export default function LeaderboardPage({ params }: Props) {
           {sentTaunt ? (
             <Typography sx={{ fontSize: '3rem', textAlign: 'center' }}>{sentTaunt}</Typography>
           ) : (
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mt: 0.5 }}>
-              {TAUNT_PRESETS.map(({ emoji, label }) => (
-                <Box
-                  key={emoji}
-                  onClick={() => sendTaunt(emoji, label)}
-                  sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    p: 2,
-                    borderRadius: 2,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    cursor: sendingTaunt ? 'not-allowed' : 'pointer',
-                    opacity: sendingTaunt ? 0.5 : 1,
-                    '&:hover': { bgcolor: 'action.hover', borderColor: 'primary.main' },
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <Typography sx={{ fontSize: '1.8rem', lineHeight: 1 }}>{emoji}</Typography>
-                  <Typography variant="caption" color="text.secondary">{label}</Typography>
-                </Box>
-              ))}
-            </Box>
+            <>
+              {myActiveTaunts >= 2 && (
+                <Typography variant="caption" color="error" sx={{ display: 'block', mb: 1 }}>
+                  You have 2 active taunts — wait 24h for one to expire before sending more.
+                </Typography>
+              )}
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mt: 0.5 }}>
+                {TAUNT_PRESETS.map(({ emoji, label }) => (
+                  <Box
+                    key={emoji}
+                    onClick={() => myActiveTaunts < 2 ? sendTaunt(emoji, label) : undefined}
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      p: 2,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      cursor: myActiveTaunts >= 2 || sendingTaunt ? 'not-allowed' : 'pointer',
+                      opacity: myActiveTaunts >= 2 || sendingTaunt ? 0.4 : 1,
+                      '&:hover': myActiveTaunts < 2 ? { bgcolor: 'action.hover', borderColor: 'primary.main' } : {},
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <Typography sx={{ fontSize: '1.8rem', lineHeight: 1 }}>{emoji}</Typography>
+                    <Typography variant="caption" color="text.secondary">{label}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            </>
           )}
         </DialogContent>
+      </Dialog>
+
+      {/* Status dialog */}
+      <Dialog open={statusDialogOpen} onClose={() => !savingStatus && setStatusDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>📣 Set your status</Typography>
+          <IconButton size="small" onClick={() => setStatusDialogOpen(false)} disabled={savingStatus}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+            Your status shows next to your name for 24 hours.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            placeholder="e.g. feeling confident 🔥"
+            value={statusText}
+            onChange={(e) => setStatusText(e.target.value.slice(0, 60))}
+            helperText={`${statusText.length}/60`}
+            size="small"
+            onKeyDown={(e) => { if (e.key === 'Enter') saveStatus(); }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          {statusText && (
+            <Button
+              size="small"
+              color="error"
+              onClick={() => { setStatusText(''); saveStatus(); }}
+              disabled={savingStatus}
+            >
+              Clear
+            </Button>
+          )}
+          <Box sx={{ flex: 1 }} />
+          <Button onClick={() => setStatusDialogOpen(false)} disabled={savingStatus} size="small">
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={saveStatus} disabled={savingStatus} size="small">
+            {savingStatus ? 'Saving…' : 'Save'}
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

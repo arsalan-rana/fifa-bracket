@@ -27,16 +27,19 @@ model League {
   activityLogs     ActivityLog[]
   matchComments    MatchComment[]
   taunts           Taunt[]
+  notifications    Notification[]
 }
 
 model LeagueMember {
-  id         String   @id @default(cuid())
-  leagueId   String
-  league     League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  joinedAt   DateTime @default(now())
-  isVerified Boolean  @default(true)
+  id               String    @id @default(cuid())
+  leagueId         String
+  league           League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt         DateTime  @default(now())
+  isVerified       Boolean   @default(true)
+  statusMessage    String?
+  statusUpdatedAt  DateTime?
 
   @@unique([leagueId, userId])
 }
@@ -58,6 +61,8 @@ model User {
   matchComments    MatchComment[]
   tauntsSent       Taunt[]            @relation("TauntsSent")
   tauntsReceived   Taunt[]            @relation("TauntsReceived")
+  tauntReactions   TauntReaction[]
+  notifications    Notification[]
 }
 
 model Account {
@@ -200,14 +205,42 @@ model MatchComment {
 }
 
 model Taunt {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   leagueId    String
-  league      League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  league      League          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   fromUserId  String
-  fromUser    User     @relation("TauntsSent", fields: [fromUserId], references: [id], onDelete: Cascade)
+  fromUser    User            @relation("TauntsSent", fields: [fromUserId], references: [id], onDelete: Cascade)
   toUserId    String
-  toUser      User     @relation("TauntsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  toUser      User            @relation("TauntsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
   emoji       String
   label       String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime        @default(now())
+  reactions   TauntReaction[]
+}
+
+model TauntReaction {
+  id        String   @id @default(cuid())
+  tauntId   String
+  taunt     Taunt    @relation(fields: [tauntId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([tauntId, userId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leagueId  String
+  league    League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  type      String
+  message   String
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, leagueId])
 }

@@ -24,11 +24,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const canAccess = !!isMember || league.ownerId === user.id || isAdmin(session.user.email);
   if (!canAccess) return res.status(403).json({ error: 'Not a league member' });
 
-  const entries = await db.leaderboardEntry.findMany({
-    where: { leagueId },
-    include: { user: { select: { name: true, email: true, image: true } } },
-    orderBy: { rank: 'asc' },
-  });
+  const [entries, members] = await Promise.all([
+    db.leaderboardEntry.findMany({
+      where: { leagueId },
+      include: { user: { select: { name: true, email: true, image: true } } },
+      orderBy: { rank: 'asc' },
+    }),
+    db.leagueMember.findMany({
+      where: { leagueId },
+      select: { userId: true, statusMessage: true, statusUpdatedAt: true },
+    }),
+  ]);
 
-  return res.status(200).json({ entries });
+  const STATUS_TTL_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const statusMap = new Map(
+    members
+      .filter((m) => m.statusMessage && m.statusUpdatedAt && now - m.statusUpdatedAt.getTime() < STATUS_TTL_MS)
+      .map((m) => [m.userId, m.statusMessage])
+  );
+
+  const enriched = entries.map((e) => ({
+    ...e,
+    statusMessage: statusMap.get(e.userId) ?? null,
+  }));
+
+  return res.status(200).json({ entries: enriched });
 }

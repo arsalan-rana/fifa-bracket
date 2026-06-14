@@ -21,6 +21,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
 import HelpIcon from '@mui/icons-material/Help';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -456,6 +457,19 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
                       sx={{ py: 1.5 }}
                     >
                       View Fixtures
+                    </Button>
+                  </Box>
+
+                  {/* Notifications */}
+                  <Box sx={{ gridColumn: '1 / -1' }}>
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      startIcon={<NotificationsIcon />}
+                      onClick={() => router.push(`/leagues/${league.slug}/notifications`)}
+                      sx={{ py: 1.5 }}
+                    >
+                      Notifications
                     </Button>
                   </Box>
                 </Box>

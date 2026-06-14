@@ -4,6 +4,8 @@ import { authOptions } from '../../lib/auth';
 import { db } from '../../lib/db';
 
 const VALID_EMOJIS = ['🔥', '😬', '👀', '🏆', '😴', '🤞', '🎰'];
+const TAUNT_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_ACTIVE_TAUNTS = 2;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -33,9 +35,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   ]);
   if (!fromMember || !toMember) return res.status(403).json({ error: 'Both users must be league members' });
 
+  // Rate limit: max 2 active (non-expired) taunts per sender per league
+  const since = new Date(Date.now() - TAUNT_TTL_MS);
+  const activeTaunts = await db.taunt.count({
+    where: { leagueId, fromUserId: fromUser.id, createdAt: { gte: since } },
+  });
+  if (activeTaunts >= MAX_ACTIVE_TAUNTS) {
+    return res.status(429).json({ error: 'You already have 2 active taunts. Wait for one to expire before sending another.' });
+  }
+
+  const league = await db.league.findUnique({ where: { id: leagueId }, select: { name: true } });
+
   const taunt = await db.taunt.create({
     data: { leagueId, fromUserId: fromUser.id, toUserId: toUser.id, emoji, label },
   });
+
+  // Create notification for recipient (not for self-taunts)
+  if (fromUser.id !== toUser.id) {
+    await db.notification.create({
+      data: {
+        userId: toUser.id,
+        leagueId,
+        type: 'taunt_received',
+        message: `${fromUser.name ?? fromUser.email.split('@')[0]} taunted you ${emoji} in ${league?.name ?? 'your league'}`,
+        metadata: { tauntId: taunt.id, label, emoji, fromName: fromUser.name ?? fromUser.email.split('@')[0] },
+      },
+    });
+  }
 
   return res.status(200).json({ taunt });
 }

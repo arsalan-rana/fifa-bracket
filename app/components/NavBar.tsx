@@ -23,6 +23,8 @@ import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import StarsIcon from '@mui/icons-material/Stars';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import LogoutIcon from '@mui/icons-material/Logout';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import Badge from '@mui/material/Badge';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -41,6 +43,7 @@ const NAV_ITEMS = [
   { label: 'Fixtures', icon: <EventNoteIcon fontSize="small" />, href: '/fixtures' },
   { label: 'Bonus', icon: <StarsIcon fontSize="small" />, href: '/bonus' },
   { label: 'Leaderboard', icon: <LeaderboardIcon fontSize="small" />, href: '/leaderboard' },
+  { label: 'Notifications', icon: <NotificationsIcon fontSize="small" />, href: '/notifications' },
 ];
 
 const PAGE_LABELS: Record<string, string> = {
@@ -48,6 +51,7 @@ const PAGE_LABELS: Record<string, string> = {
   fixtures: 'Fixtures',
   bonus: 'Bonus',
   leaderboard: 'Leaderboard',
+  notifications: 'Notifications',
   admin: 'Admin',
 };
 
