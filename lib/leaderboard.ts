@@ -1,5 +1,5 @@
 import { db } from './db';
-import { PHASES, ALL_FIXTURES, TOURNAMENT, BONUS_QUESTIONS, type Phase } from '../data/fifa-2026';
+import { PHASES, ALL_FIXTURES, TOURNAMENT, BONUS_QUESTIONS, getPhaseConfig, type Phase } from '../data/fifa-2026';
 import { calcGroupPoints, calcPoolPoints, calcBonusPoints, computeClosestWinners } from './tournament';
 
 export async function refreshLeagueLeaderboard(leagueId: string): Promise<number> {
@@ -85,7 +85,20 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
       return sum + (p.goals1 === result.goals1 && p.goals2 === result.goals2 ? 15 : 0);
     }, 0);
 
-    const penalty = userPredictions.filter((p) => p.isLate).length * TOURNAMENT.scoring.latePenaltyPerDay;
+    // Penalty = days late × latePenaltyPerDay (not per pick)
+    const latePreds = userPredictions.filter((p) => p.isLate);
+    let penalty = 0;
+    if (latePreds.length > 0) {
+      let maxDaysLate = 0;
+      for (const pred of latePreds) {
+        const fixture = ALL_FIXTURES.find((f) => f.matchNumber === pred.matchNumber);
+        if (!fixture) continue;
+        const deadline = new Date(getPhaseConfig(fixture.phase).deadline);
+        const daysLate = Math.ceil((pred.submittedAt.getTime() - deadline.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysLate > maxDaysLate) maxDaysLate = daysLate;
+      }
+      penalty = maxDaysLate * TOURNAMENT.scoring.latePenaltyPerDay;
+    }
 
     const totalPoints =
       groupPoints +
