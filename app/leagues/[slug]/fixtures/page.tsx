@@ -323,12 +323,14 @@ function CommentThread({
   leagueId,
   comments,
   members,
+  highlightedCommentId = null,
   onNewComment,
 }: {
   matchNumber: number;
   leagueId: string;
   comments: Comment[];
   members: Member[];
+  highlightedCommentId?: string | null;
   onNewComment: (c: Comment) => void;
 }) {
   const { data: session } = useSession();
@@ -338,6 +340,8 @@ function CommentThread({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const inputWrapperRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(comments.length);
+  const highlightRef = useRef<HTMLDivElement>(null);
+  const hasScrolledRef = useRef(false);
 
   useEffect(() => {
     if (comments.length > prevLengthRef.current) {
@@ -345,6 +349,17 @@ function CommentThread({
     }
     prevLengthRef.current = comments.length;
   }, [comments.length]);
+
+  // Scroll to and flash the highlighted comment once it's in the list
+  useEffect(() => {
+    if (!highlightedCommentId || hasScrolledRef.current) return;
+    const exists = comments.some((c) => c.id === highlightedCommentId);
+    if (!exists) return;
+    hasScrolledRef.current = true;
+    setTimeout(() => {
+      highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 350);
+  }, [highlightedCommentId, comments]);
 
   function handleTextChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     const val = e.target.value.slice(0, 280);
@@ -415,22 +430,44 @@ function CommentThread({
           No comments yet — be first to react
         </Typography>
       )}
-      {comments.map((c) => (
-        <Box key={c.id} sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
-          <Avatar src={c.user.image ?? undefined} sx={{ width: 28, height: 28, mt: 0.25, flexShrink: 0, fontSize: '0.65rem' }}>
-            {!c.user.image && (c.user.name?.[0] ?? c.user.email[0]).toUpperCase()}
-          </Avatar>
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
-              <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                {c.user.email === session?.user?.email ? 'You' : (c.user.name ?? c.user.email.split('@')[0])}
-              </Typography>
-              <Typography variant="caption" color="text.disabled">{timeAgo(c.createdAt)}</Typography>
+      {comments.map((c) => {
+        const isHighlighted = c.id === highlightedCommentId;
+        return (
+          <Box
+            key={c.id}
+            ref={isHighlighted ? highlightRef : null}
+            sx={{
+              display: 'flex',
+              gap: 1,
+              mb: 1.5,
+              px: 0.75,
+              mx: -0.75,
+              borderRadius: 1.5,
+              ...(isHighlighted ? {
+                animation: 'commentFlash 2.2s ease-out forwards',
+                '@keyframes commentFlash': {
+                  '0%':   { backgroundColor: 'rgba(201,167,58,0.32)' },
+                  '35%':  { backgroundColor: 'rgba(201,167,58,0.2)' },
+                  '100%': { backgroundColor: 'transparent' },
+                },
+              } : {}),
+            }}
+          >
+            <Avatar src={c.user.image ?? undefined} sx={{ width: 28, height: 28, mt: 0.25, flexShrink: 0, fontSize: '0.65rem' }}>
+              {!c.user.image && (c.user.name?.[0] ?? c.user.email[0]).toUpperCase()}
+            </Avatar>
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                  {c.user.email === session?.user?.email ? 'You' : (c.user.name ?? c.user.email.split('@')[0])}
+                </Typography>
+                <Typography variant="caption" color="text.disabled">{timeAgo(c.createdAt)}</Typography>
+              </Box>
+              <Typography variant="body2" sx={{ lineHeight: 1.5 }}>{renderCommentText(c.text)}</Typography>
             </Box>
-            <Typography variant="body2" sx={{ lineHeight: 1.5 }}>{renderCommentText(c.text)}</Typography>
           </Box>
-        </Box>
-      ))}
+        );
+      })}
 
       {session && (
         <Box
@@ -657,6 +694,7 @@ interface MatchRowProps {
   myPrediction: MyPrediction | null;
   scoreEnabled: boolean;
   isNextMatch?: boolean;
+  highlightedCommentId?: string | null;
   onToggleComments: () => void;
   onTogglePicks: () => void;
   onNewComment: (c: Comment) => void;
@@ -678,6 +716,7 @@ function MatchRow({
   myPrediction,
   scoreEnabled,
   isNextMatch = false,
+  highlightedCommentId = null,
   onToggleComments,
   onTogglePicks,
   onNewComment,
@@ -715,6 +754,7 @@ function MatchRow({
   return (
     <Box
       ref={rowRef}
+      id={`match-row-${fixture.matchNumber}`}
       sx={isNextMatch ? {
         borderRadius: 2,
         mb: 0.5,
@@ -962,6 +1002,7 @@ function MatchRow({
           leagueId={leagueId}
           comments={comments}
           members={members}
+          highlightedCommentId={highlightedCommentId}
           onNewComment={onNewComment}
         />
       </Collapse>
@@ -985,6 +1026,28 @@ export default function FixturesPage({ params }: Props) {
   const [openPicks, setOpenPicks] = useState<Set<number>>(new Set());
   const [groupBy, setGroupBy] = useState<'group' | 'date'>('date');
   const [scoreDialog, setScoreDialog] = useState<Fixture | null>(null);
+  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
+
+  // Deep-link from notification: ?match=42&comment=abc opens + highlights
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const p = new URLSearchParams(window.location.search);
+    const matchParam = p.get('match');
+    const commentParam = p.get('comment');
+    if (!matchParam) return;
+    const matchNum = parseInt(matchParam, 10);
+    if (isNaN(matchNum)) return;
+    setOpenComments((prev) => new Set([...prev, matchNum]));
+    if (commentParam) setHighlightedCommentId(commentParam);
+    // Group matches: switch to date view so the row is visible without expanding an accordion
+    const isGroup = GROUP_FIXTURES.some((f) => f.matchNumber === matchNum);
+    if (isGroup) setGroupBy('date');
+    // Scroll to the match row after a short delay for data + animation
+    setTimeout(() => {
+      const el = document.getElementById(`match-row-${matchNum}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 600);
+  }, []);
 
   const nextMatchNumber = ALL_FIXTURES
     .filter((f) => new Date(f.date) > new Date())
@@ -1071,6 +1134,7 @@ export default function FixturesPage({ params }: Props) {
         key={fixture.matchNumber}
         fixture={fixture}
         isNextMatch={fixture.matchNumber === nextMatchNumber}
+        highlightedCommentId={highlightedCommentId}
         label={
           fixture.phase === 'group' ? (
             <>

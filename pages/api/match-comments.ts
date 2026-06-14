@@ -55,7 +55,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
       const senderName = user.name ?? user.email.split('@')[0];
-      const notifData: { userId: string; leagueId: string; type: string; message: string }[] = [];
+      const preview = text.trim().slice(0, 60) + (text.trim().length > 60 ? '…' : '');
+      const notifData: { userId: string; leagueId: string; type: string; message: string; metadata: object }[] = [];
 
       for (const m of allMembers) {
         if (m.userId === user.id) continue;
@@ -66,7 +67,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             userId: m.userId,
             leagueId,
             type: 'mention',
-            message: `${senderName} mentioned you in Match ${matchNumber}: "${text.trim().slice(0, 60)}${text.trim().length > 60 ? '…' : ''}"`,
+            message: `${senderName} mentioned you in Match ${matchNumber}: "${preview}"`,
+            metadata: { matchNumber: Number(matchNumber), commentId: comment.id },
           });
         }
       }

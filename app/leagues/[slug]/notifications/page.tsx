@@ -20,6 +20,7 @@ interface Notification {
   id: string;
   type: string;
   message: string;
+  metadata?: { matchNumber?: number; commentId?: string } | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -122,18 +123,29 @@ export default function NotificationsPage({ params }: Props) {
 
   function NotifItem({ n }: { n: Notification }) {
     const isLeaderboard = ['gained_lead', 'lost_lead', 'rank_up', 'rank_down', 'taunt_received', 'score_correct'].includes(n.type);
+    const isMention = n.type === 'mention';
+    const mentionHref = isMention && n.metadata?.matchNumber
+      ? `/leagues/${slug}/fixtures?match=${n.metadata.matchNumber}${n.metadata.commentId ? `&comment=${n.metadata.commentId}` : ''}`
+      : null;
+    const isClickable = isLeaderboard || !!mentionHref;
+
+    function handleClick() {
+      if (mentionHref) router.push(mentionHref);
+      else if (isLeaderboard) router.push(`/leagues/${slug}/leaderboard`);
+    }
+
     return (
       <Box
-        onClick={() => isLeaderboard && router.push(`/leagues/${slug}/leaderboard`)}
+        onClick={isClickable ? handleClick : undefined}
         sx={{
           display: 'flex',
           alignItems: 'flex-start',
           gap: 1.5,
           px: 2,
           py: 1.5,
-          cursor: isLeaderboard ? 'pointer' : 'default',
+          cursor: isClickable ? 'pointer' : 'default',
           bgcolor: !n.readAt ? 'rgba(0,61,165,0.08)' : 'transparent',
-          '&:hover': isLeaderboard ? { bgcolor: 'rgba(255,255,255,0.04)' } : {},
+          '&:hover': isClickable ? { bgcolor: 'rgba(255,255,255,0.04)' } : {},
           transition: 'background 0.15s',
         }}
       >
