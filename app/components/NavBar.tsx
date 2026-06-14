@@ -15,9 +15,11 @@ import ListItemText from '@mui/material/ListItemText';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Breadcrumbs from '@mui/material/Breadcrumbs';
+import Divider from '@mui/material/Divider';
 import MenuIcon from '@mui/icons-material/Menu';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HomeIcon from '@mui/icons-material/Home';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import StarsIcon from '@mui/icons-material/Stars';
@@ -37,12 +39,14 @@ interface NavBarProps {
   leagueName?: string;
 }
 
-const NAV_ITEMS = [
-  { label: 'Home', icon: <HomeIcon fontSize="small" />, href: '' },
+const MAIN_NAV_ITEMS = [
   { label: 'Bracket', icon: <SportsSoccerIcon fontSize="small" />, href: '/bracket' },
   { label: 'Fixtures', icon: <EventNoteIcon fontSize="small" />, href: '/fixtures' },
   { label: 'Bonus', icon: <StarsIcon fontSize="small" />, href: '/bonus' },
   { label: 'Leaderboard', icon: <LeaderboardIcon fontSize="small" />, href: '/leaderboard' },
+];
+
+const BOTTOM_NAV_ITEMS = [
   { label: 'Notifications', icon: <NotificationsIcon fontSize="small" />, href: '/notifications' },
 ];
 
@@ -84,9 +88,13 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
   }
   const showBreadcrumbs = breadcrumbs.length > 1;
 
-  const navItems = leagueSlug
-    ? NAV_ITEMS.map((item) => ({ ...item, href: basePath + item.href }))
-    : [{ label: 'Home', icon: <HomeIcon fontSize="small" />, href: '/' }];
+  const mainNavItems = leagueSlug
+    ? MAIN_NAV_ITEMS.map((item) => ({ ...item, href: basePath + item.href }))
+    : [];
+
+  const bottomNavItems = leagueSlug
+    ? BOTTOM_NAV_ITEMS.map((item) => ({ ...item, href: basePath + item.href }))
+    : [];
 
   return (
     <>
@@ -129,7 +137,7 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
           {/* Desktop nav links */}
           {leagueSlug && (
             <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.5, ml: 2 }}>
-              {navItems.slice(1).map((item) => (
+              {[...mainNavItems, ...bottomNavItems].map((item) => (
                 <Button
                   key={item.label}
                   color="inherit"
@@ -226,12 +234,57 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
 
       {/* Mobile drawer */}
       <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-        <Box sx={{ width: 240, pt: 2 }}>
+        <Box sx={{ width: 240, pt: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
           <Typography variant="h6" sx={{ fontWeight: 800, px: 2, mb: 1 }}>
             🏆 WC26 {leagueName && `– ${leagueName}`}
           </Typography>
           <List>
-            {navItems.map((item) => (
+            {/* Leagues list link */}
+            <ListItem disablePadding>
+              <ListItemButton
+                onClick={() => { setDrawerOpen(false); router.push('/'); }}
+                selected={pathname === '/'}
+              >
+                <Box sx={{ mr: 1.5, display: 'flex', alignItems: 'center' }}>
+                  <FormatListBulletedIcon fontSize="small" />
+                </Box>
+                <ListItemText primary="My Leagues" />
+              </ListItemButton>
+            </ListItem>
+            {/* League home */}
+            {leagueSlug && (
+              <ListItem disablePadding>
+                <ListItemButton
+                  onClick={() => { setDrawerOpen(false); router.push(basePath); }}
+                  selected={pathname === basePath}
+                >
+                  <Box sx={{ mr: 1.5, display: 'flex', alignItems: 'center' }}>
+                    <HomeIcon fontSize="small" />
+                  </Box>
+                  <ListItemText primary="Home" />
+                </ListItemButton>
+              </ListItem>
+            )}
+            {/* Main nav items */}
+            {mainNavItems.map((item) => (
+              <ListItem key={item.label} disablePadding>
+                <ListItemButton
+                  onClick={() => { setDrawerOpen(false); router.push(item.href); }}
+                  selected={pathname === item.href}
+                >
+                  <Box sx={{ mr: 1.5, display: 'flex', alignItems: 'center' }}>{item.icon}</Box>
+                  <ListItemText primary={item.label} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+
+          <Box sx={{ flexGrow: 1 }} />
+
+          <Divider />
+          <List>
+            {/* Bottom items: Notifications, Admin, Sign out */}
+            {bottomNavItems.map((item) => (
               <ListItem key={item.label} disablePadding>
                 <ListItemButton
                   onClick={() => { setDrawerOpen(false); router.push(item.href); }}
