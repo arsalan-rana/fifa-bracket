@@ -655,7 +655,7 @@ export default function FixturesPage({ params }: Props) {
   const [myPreds, setMyPreds] = useState<Record<number, MyPrediction>>({});
   const [openComments, setOpenComments] = useState<Set<number>>(new Set());
   const [openPicks, setOpenPicks] = useState<Set<number>>(new Set());
-  const [groupBy, setGroupBy] = useState<'group' | 'date'>('group');
+  const [groupBy, setGroupBy] = useState<'group' | 'date'>('date');
   const [scoreDialog, setScoreDialog] = useState<Fixture | null>(null);
 
   useEffect(() => {
@@ -795,8 +795,8 @@ export default function FixturesPage({ params }: Props) {
         </Box>
 
         {/* Group Stage */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>Group Stage — 72 Matches</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>Group Stage</Typography>
           <ToggleButtonGroup
             value={groupBy}
             exclusive
