@@ -402,8 +402,8 @@ function CommentThread({
                 {filteredMembers.map((m) => (
                   <ListItem key={m.email} disablePadding>
                     <ListItemButton
-                      onMouseDown={(e) => { e.preventDefault(); insertMention(m); }}
-                      sx={{ py: 0.75 }}
+                      onPointerDown={(e) => { e.preventDefault(); insertMention(m); }}
+                      sx={{ py: 1 }}
                     >
                       <ListItemAvatar sx={{ minWidth: 36 }}>
                         <Avatar src={m.image ?? undefined} sx={{ width: 24, height: 24, fontSize: '0.6rem' }}>
@@ -437,7 +437,7 @@ function CommentThread({
                 submit();
               }
             }}
-            onBlur={() => setTimeout(() => setMentionAnchor(null), 150)}
+            onBlur={() => setTimeout(() => setMentionAnchor(null), 300)}
             onFocus={() => {
               setTimeout(() => {
                 inputWrapperRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
