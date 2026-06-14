@@ -87,6 +87,20 @@ export default function NotificationsPage({ params }: Props) {
         if (res.ok) {
           const data = await res.json();
           setNotifications(data.notifications);
+
+          // Auto-mark as read after 1.5 s so the user sees the unread state briefly
+          if (data.unreadCount > 0) {
+            setTimeout(async () => {
+              await fetch('/api/notifications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ leagueId: leagueData.id }),
+              });
+              setNotifications((prev) =>
+                prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() }))
+              );
+            }, 1500);
+          }
         }
       } finally {
         setLoading(false);
@@ -124,8 +138,10 @@ export default function NotificationsPage({ params }: Props) {
   function NotifItem({ n }: { n: Notification }) {
     const isLeaderboard = ['gained_lead', 'lost_lead', 'rank_up', 'rank_down', 'taunt_received', 'score_correct'].includes(n.type);
     const isMention = n.type === 'mention';
-    const mentionHref = isMention && n.metadata?.matchNumber
-      ? `/leagues/${slug}/fixtures?match=${n.metadata.matchNumber}${n.metadata.commentId ? `&comment=${n.metadata.commentId}` : ''}`
+    // Use metadata if present; fall back to parsing the match number from the message text
+    const matchNum = n.metadata?.matchNumber ?? parseInt(n.message.match(/Match (\d+)/)?.[1] ?? '', 10);
+    const mentionHref = isMention && !isNaN(matchNum)
+      ? `/leagues/${slug}/fixtures?match=${matchNum}${n.metadata?.commentId ? `&comment=${n.metadata.commentId}` : ''}`
       : null;
     const isClickable = isLeaderboard || !!mentionHref;
 
