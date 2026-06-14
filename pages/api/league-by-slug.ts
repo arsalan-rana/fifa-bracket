@@ -21,9 +21,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
   if (!league) return res.status(404).json({ error: 'League not found' });
 
-  const isMember = await db.leagueMember.findUnique({
-    where: { leagueId_userId: { leagueId: league.id, userId: user.id } },
-  });
+  const [isMember, members] = await Promise.all([
+    db.leagueMember.findUnique({
+      where: { leagueId_userId: { leagueId: league.id, userId: user.id } },
+    }),
+    db.leagueMember.findMany({
+      where: { leagueId: league.id },
+      include: { user: { select: { name: true, email: true, image: true } } },
+    }),
+  ]);
 
   const canAccess = !!isMember || league.ownerId === user.id || isAdmin(session.user.email);
   if (!canAccess) return res.status(403).json({ error: 'Not a member' });
@@ -38,5 +44,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     scoreEnabled: league.scoreEnabled,
     isVerified: isMember?.isVerified ?? true,
     memberCount: league._count.members,
+    members: members.map((m) => ({ name: m.user.name, email: m.user.email, image: m.user.image })),
   });
 }

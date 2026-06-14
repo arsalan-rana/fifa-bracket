@@ -43,6 +43,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       include: { user: { select: { name: true, email: true, image: true } } },
     });
 
+    // Notify mentioned users (@word matches first name, case-insensitive)
+    const mentionedWords = [...new Set(
+      [...text.matchAll(/@(\S+)/g)].map((m) => m[1].toLowerCase())
+    )];
+
+    if (mentionedWords.length > 0) {
+      const allMembers = await db.leagueMember.findMany({
+        where: { leagueId },
+        include: { user: { select: { id: true, name: true, email: true } } },
+      });
+
+      const senderName = user.name ?? user.email.split('@')[0];
+      const notifData: { userId: string; leagueId: string; type: string; message: string }[] = [];
+
+      for (const m of allMembers) {
+        if (m.userId === user.id) continue;
+        const displayName = m.user.name ?? m.user.email.split('@')[0];
+        const firstName = displayName.split(' ')[0].toLowerCase();
+        if (mentionedWords.includes(firstName)) {
+          notifData.push({
+            userId: m.userId,
+            leagueId,
+            type: 'mention',
+            message: `${senderName} mentioned you in Match ${matchNumber}: "${text.trim().slice(0, 60)}${text.trim().length > 60 ? '…' : ''}"`,
+          });
+        }
+      }
+
+      if (notifData.length > 0) {
+        await db.notification.createMany({ data: notifData });
+      }
+    }
+
     return res.status(200).json({ comment });
   }
 

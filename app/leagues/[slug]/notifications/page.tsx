@@ -31,6 +31,7 @@ const TYPE_ICONS: Record<string, string> = {
   rank_up: '📈',
   rank_down: '📉',
   score_correct: '🎯',
+  mention: '💬',
 };
 
 function groupByDay(notifications: Notification[]) {

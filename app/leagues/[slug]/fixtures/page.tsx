@@ -7,6 +7,12 @@ import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
+import Paper from '@mui/material/Paper';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemAvatar from '@mui/material/ListItemAvatar';
+import ListItemText from '@mui/material/ListItemText';
 import Collapse from '@mui/material/Collapse';
 import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
@@ -52,6 +58,29 @@ interface Comment {
   text: string;
   createdAt: string;
   user: { name: string | null; email: string; image: string | null };
+}
+
+interface Member {
+  name: string | null;
+  email: string;
+  image: string | null;
+}
+
+function renderCommentText(text: string) {
+  const parts = text.split(/(@\S+)/g);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.startsWith('@') ? (
+          <Box key={i} component="span" sx={{ color: 'secondary.main', fontWeight: 600 }}>
+            {part}
+          </Box>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
 }
 
 type Picker = { name: string; image: string | null; email: string; goals1?: number | null; goals2?: number | null };
@@ -242,20 +271,23 @@ function CommentThread({
   matchNumber,
   leagueId,
   comments,
+  members,
   onNewComment,
 }: {
   matchNumber: number;
   leagueId: string;
   comments: Comment[];
+  members: Member[];
   onNewComment: (c: Comment) => void;
 }) {
   const { data: session } = useSession();
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
+  const [mentionAnchor, setMentionAnchor] = useState<{ query: string; start: number } | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const inputWrapperRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(comments.length);
 
-  // Only scroll when a genuinely new comment arrives — not on mount
   useEffect(() => {
     if (comments.length > prevLengthRef.current) {
       inputWrapperRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -263,9 +295,49 @@ function CommentThread({
     prevLengthRef.current = comments.length;
   }, [comments.length]);
 
+  function handleTextChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
+    const val = e.target.value.slice(0, 280);
+    setText(val);
+    const cursor = e.target.selectionStart ?? val.length;
+    const before = val.slice(0, cursor);
+    const match = before.match(/@(\S*)$/);
+    if (match) {
+      setMentionAnchor({ query: match[1], start: cursor - match[0].length });
+    } else {
+      setMentionAnchor(null);
+    }
+  }
+
+  function insertMention(member: Member) {
+    const firstName = (member.name ?? member.email.split('@')[0]).split(' ')[0];
+    const cursor = inputRef.current?.selectionStart ?? text.length;
+    const before = text.slice(0, cursor).replace(/@(\S*)$/, `@${firstName} `);
+    const after = text.slice(cursor);
+    const newText = (before + after).slice(0, 280);
+    setText(newText);
+    setMentionAnchor(null);
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.selectionStart = before.length;
+        inputRef.current.selectionEnd = before.length;
+        inputRef.current.focus();
+      }
+    }, 0);
+  }
+
+  const filteredMembers = mentionAnchor
+    ? members
+        .filter((m) => {
+          const name = (m.name ?? m.email.split('@')[0]).toLowerCase();
+          return name.startsWith(mentionAnchor.query.toLowerCase()) && m.email !== session?.user?.email;
+        })
+        .slice(0, 5)
+    : [];
+
   async function submit() {
     if (!text.trim() || posting || !leagueId) return;
     setPosting(true);
+    setMentionAnchor(null);
     try {
       const res = await fetch('/api/match-comments', {
         method: 'POST',
@@ -301,7 +373,7 @@ function CommentThread({
               </Typography>
               <Typography variant="caption" color="text.disabled">{timeAgo(c.createdAt)}</Typography>
             </Box>
-            <Typography variant="body2" sx={{ lineHeight: 1.5 }}>{c.text}</Typography>
+            <Typography variant="body2" sx={{ lineHeight: 1.5 }}>{renderCommentText(c.text)}</Typography>
           </Box>
         </Box>
       ))}
@@ -309,17 +381,64 @@ function CommentThread({
       {session && (
         <Box
           ref={inputWrapperRef}
-          sx={{ display: 'flex', gap: 1, mt: comments.length > 0 ? 1.5 : 0, alignItems: 'flex-end' }}
+          sx={{ position: 'relative', display: 'flex', gap: 1, mt: comments.length > 0 ? 1.5 : 0, alignItems: 'flex-end' }}
         >
+          {/* Mention suggestions */}
+          {filteredMembers.length > 0 && (
+            <Paper
+              elevation={4}
+              sx={{
+                position: 'absolute',
+                bottom: '100%',
+                left: 0,
+                right: 40,
+                mb: 0.5,
+                borderRadius: 2,
+                overflow: 'hidden',
+                zIndex: 10,
+              }}
+            >
+              <List dense disablePadding>
+                {filteredMembers.map((m) => (
+                  <ListItem key={m.email} disablePadding>
+                    <ListItemButton
+                      onMouseDown={(e) => { e.preventDefault(); insertMention(m); }}
+                      sx={{ py: 0.75 }}
+                    >
+                      <ListItemAvatar sx={{ minWidth: 36 }}>
+                        <Avatar src={m.image ?? undefined} sx={{ width: 24, height: 24, fontSize: '0.6rem' }}>
+                          {!m.image && (m.name?.[0] ?? m.email[0]).toUpperCase()}
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {m.name ?? m.email.split('@')[0]}
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
+          )}
+
           <TextField
             size="small"
             fullWidth
-            placeholder="Add a comment…"
+            placeholder="Add a comment… (@ to mention)"
             value={text}
-            onChange={(e) => setText(e.target.value.slice(0, 280))}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } }}
+            onChange={handleTextChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { setMentionAnchor(null); return; }
+              if (e.key === 'Enter' && !e.shiftKey && filteredMembers.length === 0) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            onBlur={() => setTimeout(() => setMentionAnchor(null), 150)}
             onFocus={() => {
-              // Wait for mobile keyboard to finish sliding up before scrolling
               setTimeout(() => {
                 inputWrapperRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
               }, 350);
@@ -329,24 +448,17 @@ function CommentThread({
             maxRows={4}
             slotProps={{
               htmlInput: {
+                ref: inputRef,
                 enterKeyHint: 'send',
                 autoCapitalize: 'sentences',
               },
             }}
-            sx={{
-              '& .MuiOutlinedInput-root': { fontSize: '0.9rem', borderRadius: 3 },
-            }}
+            sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.9rem', borderRadius: 3 } }}
           />
           <IconButton
             onClick={submit}
             disabled={!text.trim() || posting}
-            sx={{
-              alignSelf: 'flex-end',
-              color: 'primary.main',
-              width: 40,
-              height: 40,
-              flexShrink: 0,
-            }}
+            sx={{ alignSelf: 'flex-end', color: 'primary.main', width: 40, height: 40, flexShrink: 0 }}
           >
             <SendIcon />
           </IconButton>
@@ -482,6 +594,7 @@ interface MatchRowProps {
   picksForMatch: Record<string, Picker[]>;
   scoresForMatch: { name: string; image: string | null; goals1: number; goals2: number }[];
   leagueId: string;
+  members: Member[];
   myPrediction: MyPrediction | null;
   scoreEnabled: boolean;
   onToggleComments: () => void;
@@ -500,6 +613,7 @@ function MatchRow({
   picksForMatch,
   scoresForMatch,
   leagueId,
+  members,
   myPrediction,
   scoreEnabled,
   onToggleComments,
@@ -636,6 +750,7 @@ function MatchRow({
           matchNumber={fixture.matchNumber}
           leagueId={leagueId}
           comments={comments}
+          members={members}
           onNewComment={onNewComment}
         />
       </Collapse>
@@ -649,6 +764,7 @@ export default function FixturesPage({ params }: Props) {
   const { slug } = use(params);
   const [leagueId, setLeagueId] = useState('');
   const [scoreEnabled, setScoreEnabled] = useState(false);
+  const [members, setMembers] = useState<Member[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [picks, setPicks] = useState<Picks>({});
   const [scores, setScores] = useState<Scores>({});
@@ -665,6 +781,7 @@ export default function FixturesPage({ params }: Props) {
       const leagueData = await leagueRes.json();
       setLeagueId(leagueData.id);
       setScoreEnabled(!!leagueData.scoreEnabled);
+      if (leagueData.members) setMembers(leagueData.members);
 
       const [cRes, pRes, myRes] = await Promise.all([
         fetch(`/api/match-comments?leagueId=${leagueData.id}`),
@@ -758,6 +875,7 @@ export default function FixturesPage({ params }: Props) {
         picksForMatch={picks[fixture.matchNumber] ?? {}}
         scoresForMatch={scores[fixture.matchNumber] ?? []}
         leagueId={leagueId}
+        members={members}
         myPrediction={myPreds[fixture.matchNumber] ?? null}
         scoreEnabled={scoreEnabled}
         onToggleComments={() => toggleComments(fixture.matchNumber)}
