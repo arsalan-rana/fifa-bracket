@@ -42,6 +42,7 @@ import {
   GROUPS,
   GROUP_FIXTURES,
   KNOCKOUT_FIXTURES,
+  ALL_FIXTURES,
   TEAMS,
   PHASES,
   isPhasePastDeadline,
@@ -655,6 +656,7 @@ interface MatchRowProps {
   matchResult: { result: string; goals1: number | null; goals2: number | null } | null;
   myPrediction: MyPrediction | null;
   scoreEnabled: boolean;
+  isNextMatch?: boolean;
   onToggleComments: () => void;
   onTogglePicks: () => void;
   onNewComment: (c: Comment) => void;
@@ -675,6 +677,7 @@ function MatchRow({
   matchResult,
   myPrediction,
   scoreEnabled,
+  isNextMatch = false,
   onToggleComments,
   onTogglePicks,
   onNewComment,
@@ -710,7 +713,55 @@ function MatchRow({
     : null;
 
   return (
-    <Box ref={rowRef} sx={{ borderBottom: isAnyOpen ? 'none' : '1px solid', borderColor: isAnyOpen ? 'transparent' : 'divider' }}>
+    <Box
+      ref={rowRef}
+      sx={isNextMatch ? {
+        borderRadius: 2,
+        mb: 0.5,
+        border: '1.5px solid',
+        borderColor: 'secondary.main',
+        boxShadow: '0 0 0 3px rgba(201,167,58,0.18), 0 0 18px 2px rgba(201,167,58,0.13)',
+        overflow: 'hidden',
+        animation: 'nextMatchPulse 2.5s ease-in-out infinite',
+        '@keyframes nextMatchPulse': {
+          '0%, 100%': { boxShadow: '0 0 0 3px rgba(201,167,58,0.18), 0 0 18px 2px rgba(201,167,58,0.10)' },
+          '50%': { boxShadow: '0 0 0 5px rgba(201,167,58,0.28), 0 0 28px 4px rgba(201,167,58,0.22)' },
+        },
+      } : {
+        borderBottom: isAnyOpen ? 'none' : '1px solid',
+        borderColor: isAnyOpen ? 'transparent' : 'divider',
+      }}
+    >
+      {isNextMatch && (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            px: 1.5,
+            py: 0.6,
+            background: 'linear-gradient(90deg, rgba(201,167,58,0.22) 0%, rgba(201,167,58,0.06) 100%)',
+            borderBottom: '1px solid',
+            borderColor: 'rgba(201,167,58,0.3)',
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: '0.65rem',
+              fontWeight: 800,
+              letterSpacing: 1.2,
+              textTransform: 'uppercase',
+              color: 'secondary.main',
+            }}
+          >
+            🎯 Next Up
+          </Typography>
+          <Box sx={{ flex: 1 }} />
+          <Typography variant="caption" sx={{ color: 'secondary.main', opacity: 0.8, fontSize: '0.6rem' }}>
+            {new Date(fixture.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York', timeZoneName: 'short' })}
+          </Typography>
+        </Box>
+      )}
       <Box
         sx={{
           display: 'flex',
@@ -836,6 +887,67 @@ function MatchRow({
         </Box>
       </Box>
 
+      {/* Next Up CTA */}
+      {isNextMatch && (
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 1,
+            px: 1.5,
+            py: 1,
+            borderTop: '1px solid',
+            borderColor: 'rgba(201,167,58,0.2)',
+            background: 'rgba(201,167,58,0.04)',
+          }}
+        >
+          {!myPrediction ? (
+            <Chip
+              label="Make your pick →"
+              size="small"
+              onClick={onTogglePicks}
+              sx={{
+                bgcolor: 'secondary.main',
+                color: 'background.default',
+                fontWeight: 700,
+                fontSize: '0.7rem',
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'secondary.dark' },
+              }}
+            />
+          ) : scoreEnabled && !hasScore ? (
+            <Chip
+              label="Predict the score →"
+              size="small"
+              onClick={onOpenScore}
+              sx={{
+                bgcolor: 'secondary.main',
+                color: 'background.default',
+                fontWeight: 700,
+                fontSize: '0.7rem',
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'secondary.dark' },
+              }}
+            />
+          ) : (
+            <Chip
+              label="💬 Leave a comment"
+              size="small"
+              onClick={onToggleComments}
+              sx={{
+                bgcolor: 'rgba(201,167,58,0.15)',
+                color: 'secondary.main',
+                fontWeight: 700,
+                fontSize: '0.7rem',
+                border: '1px solid',
+                borderColor: 'secondary.main',
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'rgba(201,167,58,0.25)' },
+              }}
+            />
+          )}
+        </Box>
+      )}
+
       {/* Picks panel */}
       {isPastDeadline && (
         <Collapse in={picksOpen} unmountOnExit>
@@ -873,6 +985,10 @@ export default function FixturesPage({ params }: Props) {
   const [openPicks, setOpenPicks] = useState<Set<number>>(new Set());
   const [groupBy, setGroupBy] = useState<'group' | 'date'>('date');
   const [scoreDialog, setScoreDialog] = useState<Fixture | null>(null);
+
+  const nextMatchNumber = ALL_FIXTURES
+    .filter((f) => new Date(f.date) > new Date())
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]?.matchNumber ?? null;
 
   useEffect(() => {
     async function load() {
@@ -954,6 +1070,7 @@ export default function FixturesPage({ params }: Props) {
       <MatchRow
         key={fixture.matchNumber}
         fixture={fixture}
+        isNextMatch={fixture.matchNumber === nextMatchNumber}
         label={
           fixture.phase === 'group' ? (
             <>
