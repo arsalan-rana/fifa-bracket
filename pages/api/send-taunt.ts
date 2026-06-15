@@ -5,7 +5,7 @@ import { db } from '../../lib/db';
 
 const VALID_EMOJIS = ['🔥', '😬', '👀', '🏆', '😴', '🤞', '🎰'];
 const TAUNT_TTL_MS = 24 * 60 * 60 * 1000;
-const MAX_ACTIVE_TAUNTS = 2;
+const MAX_ACTIVE_TAUNTS = 3;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     where: { leagueId, fromUserId: fromUser.id, createdAt: { gte: since } },
   });
   if (activeTaunts >= MAX_ACTIVE_TAUNTS) {
-    return res.status(429).json({ error: 'You already have 2 active taunts. Wait for one to expire before sending another.' });
+    return res.status(429).json({ error: 'You already have 3 active taunts in this league. Wait for one to expire before sending another.' });
   }
 
   const league = await db.league.findUnique({ where: { id: leagueId }, select: { name: true } });

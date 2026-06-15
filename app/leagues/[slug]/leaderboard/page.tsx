@@ -172,7 +172,7 @@ export default function LeaderboardPage({ params }: Props) {
           setTauntTarget(null);
         }, 1200);
       } else if (res.status === 429) {
-        alert('You already have 2 active taunts. Wait for one to expire (24h) before sending another.');
+        alert('You already have 3 active taunts in this league. Wait for one to expire (24h) before sending another.');
         setTauntTarget(null);
       }
     } finally {
@@ -260,9 +260,9 @@ export default function LeaderboardPage({ params }: Props) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {myActiveTaunts > 0 && (
               <Chip
-                label={`${myActiveTaunts}/2 taunts active`}
+                label={`${myActiveTaunts}/3 taunts active`}
                 size="small"
-                color={myActiveTaunts >= 2 ? 'error' : 'warning'}
+                color={myActiveTaunts >= 3 ? 'error' : 'warning'}
                 sx={{ fontSize: '0.7rem' }}
               />
             )}
@@ -518,16 +518,16 @@ export default function LeaderboardPage({ params }: Props) {
             <Typography sx={{ fontSize: '3rem', textAlign: 'center' }}>{sentTaunt}</Typography>
           ) : (
             <>
-              {myActiveTaunts >= 2 && (
+              {myActiveTaunts >= 3 && (
                 <Typography variant="caption" color="error" sx={{ display: 'block', mb: 1 }}>
-                  You have 2 active taunts — wait 24h for one to expire before sending more.
+                  You have 3 active taunts — wait 24h for one to expire before sending more.
                 </Typography>
               )}
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mt: 0.5 }}>
                 {TAUNT_PRESETS.map(({ emoji, label }) => (
                   <Box
                     key={emoji}
-                    onClick={() => myActiveTaunts < 2 ? sendTaunt(emoji, label) : undefined}
+                    onClick={() => myActiveTaunts < 3 ? sendTaunt(emoji, label) : undefined}
                     sx={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -537,9 +537,9 @@ export default function LeaderboardPage({ params }: Props) {
                       borderRadius: 2,
                       border: '1px solid',
                       borderColor: 'divider',
-                      cursor: myActiveTaunts >= 2 || sendingTaunt ? 'not-allowed' : 'pointer',
-                      opacity: myActiveTaunts >= 2 || sendingTaunt ? 0.4 : 1,
-                      '&:hover': myActiveTaunts < 2 ? { bgcolor: 'action.hover', borderColor: 'primary.main' } : {},
+                      cursor: myActiveTaunts >= 3 || sendingTaunt ? 'not-allowed' : 'pointer',
+                      opacity: myActiveTaunts >= 3 || sendingTaunt ? 0.4 : 1,
+                      '&:hover': myActiveTaunts < 3 ? { bgcolor: 'action.hover', borderColor: 'primary.main' } : {},
                       transition: 'all 0.15s',
                     }}
                   >
