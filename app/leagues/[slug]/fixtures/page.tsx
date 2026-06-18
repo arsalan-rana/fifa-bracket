@@ -1049,6 +1049,40 @@ export default function FixturesPage({ params }: Props) {
     }, 600);
   }, []);
 
+  // Auto-scroll to today's matches (or next upcoming day) after data loads.
+  // Skipped when a ?match deep-link is active (notification tap takes priority).
+  useEffect(() => {
+    if (!leagueId || groupBy !== 'date') return;
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('match')) return;
+
+    function labelFor(date: Date) {
+      return date.toLocaleDateString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York',
+      });
+    }
+    function idFor(label: string) {
+      return `fixtures-day-${label.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    }
+
+    const todayLabel = labelFor(new Date());
+    const todayEl = document.getElementById(idFor(todayLabel));
+
+    if (todayEl) {
+      setTimeout(() => todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+      return;
+    }
+
+    // No matches today — scroll to the next upcoming match day
+    const next = GROUP_FIXTURES
+      .filter((f) => new Date(f.date) > new Date())
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+    if (next) {
+      const nextEl = document.getElementById(idFor(labelFor(new Date(next.date))));
+      if (nextEl) setTimeout(() => nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+    }
+  }, [leagueId, groupBy]);
+
   const nextMatchNumber = ALL_FIXTURES
     .filter((f) => new Date(f.date) > new Date())
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]?.matchNumber ?? null;
@@ -1273,7 +1307,11 @@ export default function FixturesPage({ params }: Props) {
           })
         ) : (
           getGroupMatchesByDate().map(({ dayLabel, fixtures }) => (
-            <Card key={dayLabel} sx={{ mb: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+            <Card
+              key={dayLabel}
+              id={`fixtures-day-${dayLabel.replace(/[^a-zA-Z0-9]/g, '-')}`}
+              sx={{ mb: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}
+            >
               <CardContent sx={{ pb: '12px !important' }}>
                 <Typography
                   variant="caption"
