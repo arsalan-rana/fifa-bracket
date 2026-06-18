@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../lib/auth';
 import { db } from '../../lib/db';
 
-const VALID_EMOJIS = ['🔥', '😬', '👀', '🏆', '😴', '🤞', '🎰'];
+const VALID_EMOJIS = ['🔥', '😬', '👀', '🏆', '😴', '🤞', '🎰', '🖕'];
 const TAUNT_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_ACTIVE_TAUNTS = 3;
 

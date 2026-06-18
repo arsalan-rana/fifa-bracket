@@ -76,6 +76,7 @@ const TAUNT_PRESETS = [
   { emoji: '😴', label: 'wake up' },
   { emoji: '🤞', label: 'still got time' },
   { emoji: '🎰', label: 'this site is rigged' },
+  { emoji: '🖕', label: 'f**k off' },
 ];
 
 const REACTION_EMOJIS = ['👏', '😭', '🔥', '💀', '🤣', '😤'];
