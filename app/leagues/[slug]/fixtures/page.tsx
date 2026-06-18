@@ -1022,6 +1022,7 @@ export default function FixturesPage({ params }: Props) {
   const [picks, setPicks] = useState<Picks>({});
   const [scores, setScores] = useState<Scores>({});
   const [myPreds, setMyPreds] = useState<Record<number, MyPrediction>>({});
+  const [dataReady, setDataReady] = useState(false);
   const [openComments, setOpenComments] = useState<Set<number>>(new Set());
   const [openPicks, setOpenPicks] = useState<Set<number>>(new Set());
   const [groupBy, setGroupBy] = useState<'group' | 'date'>('date');
@@ -1049,11 +1050,13 @@ export default function FixturesPage({ params }: Props) {
     }, 600);
   }, []);
 
-  // Auto-scroll to today's matches (or next upcoming day) after data loads.
+  // Auto-scroll to today's matches (or next upcoming day) once ALL data has loaded.
+  // Using double rAF so React has fully committed the final render to the DOM before
+  // we measure positions — avoids landing in the wrong spot due to layout shifts from
+  // picks/results/comments inflating the page after an early scroll.
   // Skipped when a ?match deep-link is active (notification tap takes priority).
   useEffect(() => {
-    if (!leagueId || groupBy !== 'date') return;
-    if (typeof window === 'undefined') return;
+    if (!dataReady || groupBy !== 'date') return;
     if (new URLSearchParams(window.location.search).get('match')) return;
 
     function labelFor(date: Date) {
@@ -1065,13 +1068,18 @@ export default function FixturesPage({ params }: Props) {
       return `fixtures-day-${label.replace(/[^a-zA-Z0-9]/g, '-')}`;
     }
 
+    function scrollTo(el: HTMLElement) {
+      // Double rAF: first frame lets React commit, second lets the browser paint & measure layout
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      });
+    }
+
     const todayLabel = labelFor(new Date());
     const todayEl = document.getElementById(idFor(todayLabel));
-
-    if (todayEl) {
-      setTimeout(() => todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
-      return;
-    }
+    if (todayEl) { scrollTo(todayEl); return; }
 
     // No matches today — scroll to the next upcoming match day
     const next = GROUP_FIXTURES
@@ -1079,9 +1087,9 @@ export default function FixturesPage({ params }: Props) {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
     if (next) {
       const nextEl = document.getElementById(idFor(labelFor(new Date(next.date))));
-      if (nextEl) setTimeout(() => nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+      if (nextEl) scrollTo(nextEl);
     }
-  }, [leagueId, groupBy]);
+  }, [dataReady, groupBy]);
 
   const nextMatchNumber = ALL_FIXTURES
     .filter((f) => new Date(f.date) > new Date())
@@ -1116,6 +1124,8 @@ export default function FixturesPage({ params }: Props) {
         }
         setMyPreds(map);
       }
+      // Signal that all data is in — scroll effect waits for this
+      setDataReady(true);
     }
     load();
   }, [slug]);
