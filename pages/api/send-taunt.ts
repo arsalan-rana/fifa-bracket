@@ -4,6 +4,8 @@ import { authOptions } from '../../lib/auth';
 import { db } from '../../lib/db';
 
 const VALID_EMOJIS = ['🔥', '😬', '👀', '🏆', '😴', '🤞', '🎰', '🖕'];
+const CRUDE_TAUNT_EMOJI = '🖕';
+const CRUDE_TAUNT_SLUGS = new Set(['fantasy-frauds', 'bwooyyss', 'chawals']);
 const TAUNT_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_ACTIVE_TAUNTS = 3;
 
@@ -44,7 +46,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(429).json({ error: 'You already have 3 active taunts in this league. Wait for one to expire before sending another.' });
   }
 
-  const league = await db.league.findUnique({ where: { id: leagueId }, select: { name: true } });
+  const league = await db.league.findUnique({ where: { id: leagueId }, select: { name: true, slug: true } });
+
+  if (emoji === CRUDE_TAUNT_EMOJI && (!league?.slug || !CRUDE_TAUNT_SLUGS.has(league.slug))) {
+    return res.status(403).json({ error: 'That taunt is not available in this league.' });
+  }
 
   const taunt = await db.taunt.create({
     data: { leagueId, fromUserId: fromUser.id, toUserId: toUser.id, emoji, label },

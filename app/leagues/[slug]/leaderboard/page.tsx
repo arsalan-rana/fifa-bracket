@@ -68,7 +68,9 @@ interface TauntInfo {
   reactions: TauntReaction[];
 }
 
-const TAUNT_PRESETS = [
+const CRUDE_TAUNT_SLUGS = new Set(['fantasy-frauds', 'bwooyyss', 'chawals']);
+
+const BASE_TAUNT_PRESETS = [
   { emoji: '🔥', label: 'on fire' },
   { emoji: '😬', label: 'unlucky' },
   { emoji: '👀', label: 'watching you' },
@@ -76,8 +78,13 @@ const TAUNT_PRESETS = [
   { emoji: '😴', label: 'wake up' },
   { emoji: '🤞', label: 'still got time' },
   { emoji: '🎰', label: 'this site is rigged' },
-  { emoji: '🖕', label: 'f**k off' },
 ];
+
+const CRUDE_TAUNT = { emoji: '🖕', label: 'f**k off' };
+
+function getTauntPresets(slug: string) {
+  return CRUDE_TAUNT_SLUGS.has(slug) ? [...BASE_TAUNT_PRESETS, CRUDE_TAUNT] : BASE_TAUNT_PRESETS;
+}
 
 const REACTION_EMOJIS = ['👏', '😭', '🔥', '💀', '🤣', '😤'];
 
@@ -525,7 +532,7 @@ export default function LeaderboardPage({ params }: Props) {
                 </Typography>
               )}
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mt: 0.5 }}>
-                {TAUNT_PRESETS.map(({ emoji, label }) => (
+                {getTauntPresets(slug).map(({ emoji, label }) => (
                   <Box
                     key={emoji}
                     onClick={() => myActiveTaunts < 3 ? sendTaunt(emoji, label) : undefined}
