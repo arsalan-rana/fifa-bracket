@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -16,6 +16,8 @@ import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Breadcrumbs from '@mui/material/Breadcrumbs';
 import Divider from '@mui/material/Divider';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import MenuIcon from '@mui/icons-material/Menu';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HomeIcon from '@mui/icons-material/Home';
@@ -28,6 +30,8 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import Badge from '@mui/material/Badge';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import CheckIcon from '@mui/icons-material/Check';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import LightModeIcon from '@mui/icons-material/LightMode';
@@ -37,6 +41,13 @@ import { useThemeMode } from '../theme-context';
 interface NavBarProps {
   leagueSlug?: string;
   leagueName?: string;
+}
+
+interface LeagueSummary {
+  id: string;
+  name: string;
+  slug: string;
+  myRank: { rank: number; totalPoints: number } | null;
 }
 
 const MAIN_NAV_ITEMS = [
@@ -65,11 +76,38 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { mode, toggle } = useThemeMode();
+  const [myLeagues, setMyLeagues] = useState<LeagueSummary[]>([]);
+  const [switcherAnchor, setSwitcherAnchor] = useState<null | HTMLElement>(null);
 
   const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
   const isAdminUser = !!adminEmail && session?.user?.email === adminEmail;
 
   const basePath = leagueSlug ? `/leagues/${leagueSlug}` : '';
+
+  // Fetch user's leagues for the switcher
+  useEffect(() => {
+    if (!session || !leagueSlug) return;
+    fetch('/api/my-leagues')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.leagues) setMyLeagues(d.leagues.filter((l: LeagueSummary & { isMember?: boolean }) => l.isMember !== false));
+      })
+      .catch(() => {});
+  }, [session, leagueSlug]);
+
+  function switchLeague(newSlug: string) {
+    setSwitcherAnchor(null);
+    setDrawerOpen(false);
+    if (newSlug === leagueSlug) return;
+    const safePath = pathname ?? '';
+    // Swap the slug in the current path so user lands on the same view
+    const newPath = safePath.includes(`/leagues/${leagueSlug}`)
+      ? safePath.replace(`/leagues/${leagueSlug}`, `/leagues/${newSlug}`)
+      : `/leagues/${newSlug}`;
+    router.push(newPath);
+  }
+
+  const hasMultipleLeagues = myLeagues.length > 1;
 
   // Build breadcrumb trail from current path
   const safePath = pathname ?? '';
@@ -119,24 +157,83 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
             </IconButton>
           )}
 
-          {/* Logo / title */}
+          {/* Logo */}
           <Link href="/" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Typography sx={{ fontSize: '1.4rem' }}>🏆</Typography>
             <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
               <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.1 }}>
                 WC26
               </Typography>
-              {leagueName && (
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', lineHeight: 1 }}>
-                  {leagueName}
-                </Typography>
-              )}
             </Box>
           </Link>
 
+          {/* League switcher — shown when inside a league */}
+          {leagueSlug && leagueName && (
+            <Box
+              onClick={hasMultipleLeagues ? (e) => setSwitcherAnchor(e.currentTarget as HTMLElement) : undefined}
+              sx={{
+                display: { xs: 'none', sm: 'flex' },
+                alignItems: 'center',
+                gap: 0.25,
+                ml: 0.5,
+                px: 1,
+                py: 0.4,
+                borderRadius: 1.5,
+                cursor: hasMultipleLeagues ? 'pointer' : 'default',
+                border: '1px solid',
+                borderColor: hasMultipleLeagues ? 'rgba(201,167,58,0.35)' : 'transparent',
+                bgcolor: hasMultipleLeagues ? 'rgba(201,167,58,0.08)' : 'transparent',
+                '&:hover': hasMultipleLeagues ? { bgcolor: 'rgba(201,167,58,0.16)', borderColor: 'rgba(201,167,58,0.6)' } : {},
+                transition: 'all 0.15s',
+              }}
+            >
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, lineHeight: 1 }}>
+                {leagueName}
+              </Typography>
+              {hasMultipleLeagues && (
+                <KeyboardArrowDownIcon sx={{ fontSize: 15, color: 'rgba(201,167,58,0.8)', transition: 'transform 0.15s', transform: switcherAnchor ? 'rotate(180deg)' : 'none' }} />
+              )}
+            </Box>
+          )}
+
+          {/* Switcher dropdown */}
+          <Menu
+            anchorEl={switcherAnchor}
+            open={Boolean(switcherAnchor)}
+            onClose={() => setSwitcherAnchor(null)}
+            slotProps={{ paper: { sx: { mt: 0.5, minWidth: 200, bgcolor: 'background.paper' } } }}
+          >
+            <Typography variant="caption" sx={{ display: 'block', px: 2, pt: 1, pb: 0.5, fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.65rem' }}>
+              Switch League
+            </Typography>
+            {myLeagues.map((l) => {
+              const isCurrent = l.slug === leagueSlug;
+              return (
+                <MenuItem
+                  key={l.slug}
+                  onClick={() => switchLeague(l.slug)}
+                  selected={isCurrent}
+                  sx={{ gap: 1.5, py: 1 }}
+                >
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: isCurrent ? 700 : 400, color: isCurrent ? 'secondary.main' : 'text.primary' }}>
+                      {l.name}
+                    </Typography>
+                    {l.myRank && (
+                      <Typography variant="caption" color="text.disabled">
+                        Rank #{l.myRank.rank} · {l.myRank.totalPoints} pts
+                      </Typography>
+                    )}
+                  </Box>
+                  {isCurrent && <CheckIcon sx={{ fontSize: 16, color: 'secondary.main', flexShrink: 0 }} />}
+                </MenuItem>
+              );
+            })}
+          </Menu>
+
           {/* Desktop nav links */}
           {leagueSlug && (
-            <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.5, ml: 2 }}>
+            <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.5, ml: 1 }}>
               {[...mainNavItems, ...bottomNavItems].map((item) => (
                 <Button
                   key={item.label}
@@ -235,9 +332,63 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
       {/* Mobile drawer */}
       <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
         <Box sx={{ width: 240, pt: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, px: 2, mb: 1 }}>
-            🏆 WC26 {leagueName && `– ${leagueName}`}
+          <Typography variant="h6" sx={{ fontWeight: 800, px: 2, mb: 0.5 }}>
+            🏆 WC26
           </Typography>
+
+          {/* League switcher in drawer */}
+          {hasMultipleLeagues && (
+            <Box sx={{ px: 2, mb: 1 }}>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.6rem' }}>
+                Switch League
+              </Typography>
+              {myLeagues.map((l) => {
+                const isCurrent = l.slug === leagueSlug;
+                return (
+                  <Box
+                    key={l.slug}
+                    onClick={() => switchLeague(l.slug)}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      px: 1,
+                      py: 0.75,
+                      mt: 0.5,
+                      borderRadius: 1.5,
+                      cursor: isCurrent ? 'default' : 'pointer',
+                      bgcolor: isCurrent ? 'rgba(201,167,58,0.12)' : 'transparent',
+                      border: '1px solid',
+                      borderColor: isCurrent ? 'rgba(201,167,58,0.4)' : 'divider',
+                      '&:hover': !isCurrent ? { bgcolor: 'action.hover' } : {},
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body2" sx={{ fontWeight: isCurrent ? 700 : 400, color: isCurrent ? 'secondary.main' : 'text.primary', lineHeight: 1.2 }}>
+                        {l.name}
+                      </Typography>
+                      {l.myRank && (
+                        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>
+                          #{l.myRank.rank} · {l.myRank.totalPoints} pts
+                        </Typography>
+                      )}
+                    </Box>
+                    {isCurrent && <CheckIcon sx={{ fontSize: 14, color: 'secondary.main', flexShrink: 0 }} />}
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+
+          {!hasMultipleLeagues && leagueName && (
+            <Typography variant="body2" sx={{ px: 2, mb: 1, color: 'text.secondary', fontWeight: 600 }}>
+              {leagueName}
+            </Typography>
+          )}
+
+          <Divider sx={{ mb: 0.5 }} />
+
           <List>
             {/* Leagues list link */}
             <ListItem disablePadding>
@@ -283,7 +434,6 @@ export default function NavBar({ leagueSlug, leagueName }: NavBarProps) {
 
           <Divider />
           <List>
-            {/* Bottom items: Notifications, Admin, Sign out */}
             {bottomNavItems.map((item) => (
               <ListItem key={item.label} disablePadding>
                 <ListItemButton
