@@ -612,9 +612,10 @@ export default function LeaderboardPage({ params }: Props) {
       <Dialog
         open={!!picksTarget}
         onClose={() => setPicksTarget(null)}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
-        sx={{ '& .MuiDialog-paper': { maxHeight: '85vh' } }}
+        fullScreen={typeof window !== 'undefined' && window.innerWidth < 600}
+        sx={{ '& .MuiDialog-paper': { maxHeight: { xs: '100vh', sm: '85vh' } } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
@@ -624,79 +625,97 @@ export default function LeaderboardPage({ params }: Props) {
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
+        <DialogContent sx={{ p: 0, overflowX: 'hidden' }}>
           {picksLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
               <CircularProgress color="secondary" size={32} />
             </Box>
           ) : (
-            <Table size="small" stickyHeader>
-              <TableHead>
-                <TableRow sx={{ background: 'rgba(0,61,165,0.2)' }}>
-                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1 }}>#</TableCell>
-                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1 }}>Match</TableCell>
-                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1 }}>Picked</TableCell>
-                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1 }}>Result</TableCell>
-                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1, textAlign: 'right' }}>Pts</TableCell>
-                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1, textAlign: 'right' }}>Total</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {picksData.filter(p => p.actualResult !== null || p.predictedWinner !== null).map((pick) => {
-                  const played = pick.actualResult !== null;
-                  const bg = !played ? 'transparent'
-                    : pick.correct ? 'rgba(34,197,94,0.08)'
-                    : 'rgba(239,68,68,0.06)';
-                  const pickedTeam = pick.predictedWinner === 'DRAW' ? 'Draw'
-                    : pick.predictedWinner === pick.team1 ? `${pick.team1Flag} ${pick.team1Name}`
-                    : pick.predictedWinner === pick.team2 ? `${pick.team2Flag} ${pick.team2Name}`
-                    : pick.predictedWinner ?? '—';
-                  const resultTeam = !pick.actualResult ? '—'
-                    : pick.actualResult === 'DRAW' ? 'Draw'
-                    : pick.actualResult === pick.team1 ? `${pick.team1Flag} ${pick.team1Name}`
-                    : `${pick.team2Flag} ${pick.team2Name}`;
-                  const matchDate = new Date(pick.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            <Box>
+              {picksData.filter(p => p.actualResult !== null || p.predictedWinner !== null).map((pick, idx, arr) => {
+                const played = pick.actualResult !== null;
+                const pickedName = !pick.predictedWinner ? null
+                  : pick.predictedWinner === 'DRAW' ? 'Draw'
+                  : pick.predictedWinner === pick.team1 ? `${pick.team1Flag} ${pick.team1Name}`
+                  : `${pick.team2Flag} ${pick.team2Name}`;
+                const resultName = !pick.actualResult ? null
+                  : pick.actualResult === 'DRAW' ? 'Draw'
+                  : pick.actualResult === pick.team1 ? `${pick.team1Flag} ${pick.team1Name}`
+                  : `${pick.team2Flag} ${pick.team2Name}`;
+                const matchDate = new Date(pick.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const submittedLabel = pick.submittedAt
+                  ? new Date(pick.submittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                  : null;
+                const borderColor = !played ? 'divider'
+                  : pick.correct ? 'rgba(34,197,94,0.4)'
+                  : 'rgba(239,68,68,0.3)';
+                const bg = !played ? 'transparent'
+                  : pick.correct ? 'rgba(34,197,94,0.06)'
+                  : 'rgba(239,68,68,0.05)';
 
-                  return (
-                    <TableRow key={pick.matchNumber} sx={{ bgcolor: bg }}>
-                      <TableCell sx={{ fontSize: '0.7rem', color: 'text.disabled', py: 0.75 }}>
-                        {pick.matchNumber}
-                      </TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem', py: 0.75 }}>
-                        <Typography variant="caption" sx={{ display: 'block', fontWeight: 500 }}>
-                          {pick.team1Flag} {pick.team1Name} vs {pick.team2Flag} {pick.team2Name}
+                return (
+                  <Box
+                    key={pick.matchNumber}
+                    sx={{
+                      px: 2,
+                      py: 1.25,
+                      borderBottom: idx < arr.length - 1 ? '1px solid' : 'none',
+                      borderColor: 'divider',
+                      borderLeft: '3px solid',
+                      borderLeftColor: borderColor,
+                      bgcolor: bg,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                    }}
+                  >
+                    {/* Left: outcome icon */}
+                    <Typography sx={{ fontSize: '1.1rem', flexShrink: 0, width: 22, textAlign: 'center' }}>
+                      {!played ? '🕐' : pick.correct ? '✅' : '❌'}
+                    </Typography>
+
+                    {/* Middle: match info + pick/result */}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {pick.team1Flag} {pick.team1Name} vs {pick.team2Flag} {pick.team2Name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', display: 'block', lineHeight: 1.4 }}>
+                        {matchDate} · M{pick.matchNumber}
+                        {pick.isLate && <span style={{ color: '#f87171', marginLeft: 4 }}>late</span>}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25, flexWrap: 'wrap' }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.72rem' }}>
+                          {pickedName ?? <span style={{ color: 'rgba(255,255,255,0.3)' }}>no pick</span>}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>
-                          {matchDate} · {pick.phase}
-                          {pick.isLate && <span style={{ color: '#f87171', marginLeft: 4 }}>late</span>}
-                        </Typography>
-                      </TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem', py: 0.75 }}>
-                        <Tooltip title={pick.submittedAt ? `Submitted ${new Date(pick.submittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''} placement="top">
-                          <span>{pick.predictedWinner ? pickedTeam : <Typography component="span" variant="caption" color="text.disabled">no pick</Typography>}</span>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem', py: 0.75 }}>
-                        {played ? (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <span>{pick.correct ? '✅' : '❌'}</span>
-                            <span>{resultTeam}</span>
-                          </Box>
-                        ) : (
-                          <Typography variant="caption" color="text.disabled">upcoming</Typography>
+                        {played && (
+                          <>
+                            <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>→</Typography>
+                            <Typography variant="caption" sx={{ fontSize: '0.72rem', color: pick.correct ? 'success.main' : 'error.main', fontWeight: pick.correct ? 600 : 400 }}>
+                              {resultName}
+                            </Typography>
+                          </>
                         )}
-                      </TableCell>
-                      <TableCell sx={{ textAlign: 'right', fontWeight: 700, fontSize: '0.8rem', py: 0.75, color: pick.pointsEarned > 0 ? 'secondary.main' : 'text.disabled' }}>
+                        {submittedLabel && (
+                          <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.6rem', ml: 0.5 }}>
+                            · {submittedLabel}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+
+                    {/* Right: pts + cumulative */}
+                    <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
+                      <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', lineHeight: 1.2, color: pick.pointsEarned > 0 ? 'secondary.main' : played ? 'text.disabled' : 'text.disabled' }}>
                         {pick.pointsEarned > 0 ? `+${pick.pointsEarned}` : played ? '0' : '—'}
-                      </TableCell>
-                      <TableCell sx={{ textAlign: 'right', fontWeight: 800, fontSize: '0.8rem', py: 0.75, color: 'text.primary' }}>
-                        {pick.cumulative}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled', lineHeight: 1.2 }}>
+                        {pick.cumulative} total
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
           )}
         </DialogContent>
       </Dialog>
