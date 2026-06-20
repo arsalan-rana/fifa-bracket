@@ -28,6 +28,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import Badge from '@mui/material/Badge';
+import Tooltip from '@mui/material/Tooltip';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
@@ -49,6 +50,7 @@ interface LeaderboardEntry {
   scorePoints: number;
   penalty: number;
   statusMessage: string | null;
+  userId: string;
   user: { name: string | null; email: string; image: string | null };
 }
 
@@ -66,6 +68,21 @@ interface TauntInfo {
   isSelf: boolean;
   createdAt: string;
   reactions: TauntReaction[];
+}
+
+interface PickRow {
+  matchNumber: number;
+  phase: string;
+  team1Flag: string; team1Name: string; team1: string;
+  team2Flag: string; team2Name: string; team2: string;
+  date: string;
+  predictedWinner: string | null;
+  submittedAt: string | null;
+  isLate: boolean;
+  actualResult: string | null;
+  correct: boolean | null;
+  pointsEarned: number;
+  cumulative: number;
 }
 
 const CRUDE_TAUNT_SLUGS = new Set(['fantasy-frauds', 'bwooyyss', 'chawals']);
@@ -115,6 +132,11 @@ export default function LeaderboardPage({ params }: Props) {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusText, setStatusText] = useState('');
   const [savingStatus, setSavingStatus] = useState(false);
+
+  // Picks breakdown dialog
+  const [picksTarget, setPicksTarget] = useState<{ userId: string; name: string } | null>(null);
+  const [picksData, setPicksData] = useState<PickRow[]>([]);
+  const [picksLoading, setPicksLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -245,6 +267,21 @@ export default function LeaderboardPage({ params }: Props) {
       setStatusDialogOpen(false);
     } finally {
       setSavingStatus(false);
+    }
+  }
+
+  async function openPicks(userId: string, name: string) {
+    setPicksTarget({ userId, name });
+    setPicksData([]);
+    setPicksLoading(true);
+    try {
+      const res = await fetch(`/api/pick-breakdown?leagueId=${leagueId}&userId=${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPicksData(data.picks);
+      }
+    } finally {
+      setPicksLoading(false);
     }
   }
 
@@ -416,6 +453,16 @@ export default function LeaderboardPage({ params }: Props) {
                                 </Box>
                               ))}
                             </Box>
+                            <Chip
+                              label="📊"
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPicks(entry.userId, entry.user.name ?? entry.user.email.split('@')[0]);
+                              }}
+                              title="View pick breakdown"
+                              sx={{ flexShrink: 0, cursor: 'pointer', fontSize: '0.75rem', '&:hover': { bgcolor: 'rgba(201,167,58,0.2)', borderColor: 'secondary.main' } }}
+                            />
                             {session && (
                               <>
                                 {isMe ? (
@@ -557,6 +604,99 @@ export default function LeaderboardPage({ params }: Props) {
                 ))}
               </Box>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Picks breakdown dialog */}
+      <Dialog
+        open={!!picksTarget}
+        onClose={() => setPicksTarget(null)}
+        maxWidth="md"
+        fullWidth
+        sx={{ '& .MuiDialog-paper': { maxHeight: '85vh' } }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            📊 {picksTarget?.name}&apos;s picks
+          </Typography>
+          <IconButton size="small" onClick={() => setPicksTarget(null)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          {picksLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+              <CircularProgress color="secondary" size={32} />
+            </Box>
+          ) : (
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow sx={{ background: 'rgba(0,61,165,0.2)' }}>
+                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1 }}>#</TableCell>
+                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1 }}>Match</TableCell>
+                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1 }}>Picked</TableCell>
+                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1 }}>Result</TableCell>
+                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1, textAlign: 'right' }}>Pts</TableCell>
+                  <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', py: 1, textAlign: 'right' }}>Total</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {picksData.filter(p => p.actualResult !== null || p.predictedWinner !== null).map((pick) => {
+                  const played = pick.actualResult !== null;
+                  const bg = !played ? 'transparent'
+                    : pick.correct ? 'rgba(34,197,94,0.08)'
+                    : 'rgba(239,68,68,0.06)';
+                  const pickedTeam = pick.predictedWinner === 'DRAW' ? 'Draw'
+                    : pick.predictedWinner === pick.team1 ? `${pick.team1Flag} ${pick.team1Name}`
+                    : pick.predictedWinner === pick.team2 ? `${pick.team2Flag} ${pick.team2Name}`
+                    : pick.predictedWinner ?? '—';
+                  const resultTeam = !pick.actualResult ? '—'
+                    : pick.actualResult === 'DRAW' ? 'Draw'
+                    : pick.actualResult === pick.team1 ? `${pick.team1Flag} ${pick.team1Name}`
+                    : `${pick.team2Flag} ${pick.team2Name}`;
+                  const matchDate = new Date(pick.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+                  return (
+                    <TableRow key={pick.matchNumber} sx={{ bgcolor: bg }}>
+                      <TableCell sx={{ fontSize: '0.7rem', color: 'text.disabled', py: 0.75 }}>
+                        {pick.matchNumber}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.75rem', py: 0.75 }}>
+                        <Typography variant="caption" sx={{ display: 'block', fontWeight: 500 }}>
+                          {pick.team1Flag} {pick.team1Name} vs {pick.team2Flag} {pick.team2Name}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem' }}>
+                          {matchDate} · {pick.phase}
+                          {pick.isLate && <span style={{ color: '#f87171', marginLeft: 4 }}>late</span>}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.75rem', py: 0.75 }}>
+                        <Tooltip title={pick.submittedAt ? `Submitted ${new Date(pick.submittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''} placement="top">
+                          <span>{pick.predictedWinner ? pickedTeam : <Typography component="span" variant="caption" color="text.disabled">no pick</Typography>}</span>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.75rem', py: 0.75 }}>
+                        {played ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <span>{pick.correct ? '✅' : '❌'}</span>
+                            <span>{resultTeam}</span>
+                          </Box>
+                        ) : (
+                          <Typography variant="caption" color="text.disabled">upcoming</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell sx={{ textAlign: 'right', fontWeight: 700, fontSize: '0.8rem', py: 0.75, color: pick.pointsEarned > 0 ? 'secondary.main' : 'text.disabled' }}>
+                        {pick.pointsEarned > 0 ? `+${pick.pointsEarned}` : played ? '0' : '—'}
+                      </TableCell>
+                      <TableCell sx={{ textAlign: 'right', fontWeight: 800, fontSize: '0.8rem', py: 0.75, color: 'text.primary' }}>
+                        {pick.cumulative}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
         </DialogContent>
       </Dialog>

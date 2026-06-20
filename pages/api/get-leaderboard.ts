@@ -46,6 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const enriched = entries.map((e) => ({
     ...e,
+    userId: e.userId,
     statusMessage: statusMap.get(e.userId) ?? null,
   }));
 
