@@ -185,7 +185,7 @@ export const GROUP_FIXTURES: Fixture[] = [
   { matchNumber: 19, phase: 'group', group: 'D', team1: 'USA', team2: 'PAR', venue: 'SoFi Stadium', city: 'Los Angeles', date: '2026-06-13T01:00:00Z', canDraw: true, aiPrediction: 'USA' },
   { matchNumber: 20, phase: 'group', group: 'D', team1: 'AUS', team2: 'TUR', venue: 'BC Place', city: 'Vancouver', date: '2026-06-14T04:00:00Z', canDraw: true, aiPrediction: 'TUR' },
   { matchNumber: 21, phase: 'group', group: 'D', team1: 'USA', team2: 'AUS', venue: 'Lumen Field', city: 'Seattle', date: '2026-06-19T19:00:00Z', canDraw: true, aiPrediction: 'USA' },
-  { matchNumber: 22, phase: 'group', group: 'D', team1: 'TUR', team2: 'PAR', venue: "Levi's Stadium", city: 'San Francisco', date: '2026-06-20T04:00:00Z', canDraw: true, aiPrediction: 'TUR' },
+  { matchNumber: 22, phase: 'group', group: 'D', team1: 'TUR', team2: 'PAR', venue: "Levi's Stadium", city: 'San Francisco', date: '2026-06-20T03:00:00Z', canDraw: true, aiPrediction: 'TUR' },
   { matchNumber: 23, phase: 'group', group: 'D', team1: 'TUR', team2: 'USA', venue: 'SoFi Stadium', city: 'Los Angeles', date: '2026-06-26T02:00:00Z', canDraw: true, aiPrediction: 'USA' },
   { matchNumber: 24, phase: 'group', group: 'D', team1: 'PAR', team2: 'AUS', venue: "Levi's Stadium", city: 'San Francisco', date: '2026-06-26T02:00:00Z', canDraw: true, aiPrediction: 'PAR' },
 
