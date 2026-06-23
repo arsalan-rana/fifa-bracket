@@ -77,10 +77,17 @@ interface PickRow {
   team2Flag: string; team2Name: string; team2: string;
   date: string;
   predictedWinner: string | null;
+  predictedGoals1: number | null;
+  predictedGoals2: number | null;
   submittedAt: string | null;
   isLate: boolean;
   actualResult: string | null;
+  actualGoals1: number | null;
+  actualGoals2: number | null;
   correct: boolean | null;
+  scoreCorrect: boolean | null;
+  pickPoints: number;
+  scorePoints: number;
   pointsEarned: number;
   cumulative: number;
 }
@@ -701,13 +708,36 @@ export default function LeaderboardPage({ params }: Props) {
                           </Typography>
                         )}
                       </Box>
+                      {/* Score prediction row */}
+                      {pick.predictedGoals1 !== null && pick.predictedGoals2 !== null && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.1 }}>
+                          <Typography variant="caption" sx={{ fontSize: '0.65rem', color: pick.scoreCorrect === true ? 'secondary.main' : pick.scoreCorrect === false ? 'text.disabled' : 'text.secondary', fontWeight: pick.scoreCorrect ? 700 : 400 }}>
+                            Score: {pick.predictedGoals1}–{pick.predictedGoals2}
+                          </Typography>
+                          {pick.actualGoals1 !== null && pick.scoreCorrect === false && (
+                            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.disabled' }}>
+                              (actual {pick.actualGoals1}–{pick.actualGoals2})
+                            </Typography>
+                          )}
+                          {pick.scoreCorrect === true && (
+                            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'secondary.main', fontWeight: 700 }}>
+                              ⭐ +15
+                            </Typography>
+                          )}
+                        </Box>
+                      )}
                     </Box>
 
                     {/* Right: pts + cumulative */}
-                    <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
+                    <Box sx={{ flexShrink: 0, textAlign: 'right', minWidth: 52 }}>
                       <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', lineHeight: 1.2, color: pick.pointsEarned > 0 ? 'secondary.main' : played ? 'text.disabled' : 'text.disabled' }}>
                         {pick.pointsEarned > 0 ? `+${pick.pointsEarned}` : played ? '0' : '—'}
                       </Typography>
+                      {pick.scorePoints > 0 && (
+                        <Typography sx={{ fontSize: '0.6rem', color: 'secondary.main', lineHeight: 1.1 }}>
+                          ({pick.pickPoints}+{pick.scorePoints})
+                        </Typography>
+                      )}
                       <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled', lineHeight: 1.2 }}>
                         {pick.cumulative} total
                       </Typography>

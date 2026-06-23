@@ -29,6 +29,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   ]);
 
   const resultMap = new Map(fixtureResults.map(r => [r.matchNumber, r.result]));
+  const scoreResultMap = new Map(
+    fixtureResults
+      .filter(r => r.goals1 !== null && r.goals2 !== null)
+      .map(r => [r.matchNumber, { goals1: r.goals1!, goals2: r.goals2! }])
+  );
 
   // Build pool share lookup: matchNumber → points earned if correct
   const poolByMatch = new Map<number, number>();
@@ -55,7 +60,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const pred = predMap.get(fixture.matchNumber);
     const result = resultMap.get(fixture.matchNumber) ?? null;
     const correct = result !== null && pred ? pred.predictedWinner === result : null;
-    const pointsEarned = correct ? (poolByMatch.get(fixture.matchNumber) ?? 0) : 0;
+    const pickPoints = correct ? (poolByMatch.get(fixture.matchNumber) ?? 0) : 0;
+
+    const actualScore = scoreResultMap.get(fixture.matchNumber) ?? null;
+    const predictedGoals1 = pred?.goals1 ?? null;
+    const predictedGoals2 = pred?.goals2 ?? null;
+    const scoreCorrect =
+      actualScore !== null && predictedGoals1 !== null && predictedGoals2 !== null
+        ? predictedGoals1 === actualScore.goals1 && predictedGoals2 === actualScore.goals2
+        : null;
+    const scorePoints = scoreCorrect ? 15 : 0;
+
+    const pointsEarned = pickPoints + scorePoints;
     cumulative += pointsEarned;
 
     const t1 = TEAMS[fixture.team1];
@@ -72,10 +88,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       team2Flag: t2?.flag ?? '',
       date: fixture.date,
       predictedWinner: pred?.predictedWinner ?? null,
+      predictedGoals1,
+      predictedGoals2,
       submittedAt: pred?.submittedAt?.toISOString() ?? null,
       isLate: pred?.isLate ?? false,
       actualResult: result,
+      actualGoals1: actualScore?.goals1 ?? null,
+      actualGoals2: actualScore?.goals2 ?? null,
       correct,
+      scoreCorrect,
+      pickPoints,
+      scorePoints,
       pointsEarned,
       cumulative,
     };
