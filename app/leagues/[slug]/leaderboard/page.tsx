@@ -81,6 +81,7 @@ interface PickRow {
   predictedGoals2: number | null;
   submittedAt: string | null;
   isLate: boolean;
+  chipType: string | null;
   actualResult: string | null;
   actualGoals1: number | null;
   actualGoals2: number | null;
@@ -688,6 +689,9 @@ export default function LeaderboardPage({ params }: Props) {
                       </Typography>
                       <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.65rem', display: 'block', lineHeight: 1.4 }}>
                         {matchDate} · M{pick.matchNumber}
+                        {pick.chipType === 'doubleUp' && <span style={{ color: '#c9a73a', marginLeft: 4 }}>⚡ 2× double up</span>}
+                        {pick.chipType === 'banker' && <span style={{ color: '#c9a73a', marginLeft: 4 }}>🏦 3× banker</span>}
+                        {pick.chipType === 'wildcard' && <span style={{ color: '#a78bfa', marginLeft: 4 }}>🃏 wildcard</span>}
                         {pick.isLate && <span style={{ color: '#f87171', marginLeft: 4 }}>late</span>}
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25, flexWrap: 'wrap' }}>

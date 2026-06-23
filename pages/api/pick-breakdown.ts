@@ -22,11 +22,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
   if (!isMember) return res.status(403).json({ error: 'Not a league member' });
 
-  const [predictions, allLeaguePredictions, fixtureResults] = await Promise.all([
+  const [predictions, allLeaguePredictions, fixtureResults, members, userChips] = await Promise.all([
     db.prediction.findMany({ where: { userId, leagueId } }),
     db.prediction.findMany({ where: { leagueId } }),
     db.fixtureResult.findMany(),
+    db.leagueMember.findMany({ where: { leagueId }, select: { userId: true } }),
+    db.chipUsage.findMany({ where: { userId, leagueId } }),
   ]);
+
+  // Pool denominator must only include current members (same as leaderboard calc)
+  const memberUserIds = new Set(members.map(m => m.userId));
+  const memberPredictions = allLeaguePredictions.filter(p => memberUserIds.has(p.userId));
 
   const resultMap = new Map(fixtureResults.map(r => [r.matchNumber, r.result]));
   const scoreResultMap = new Map(
@@ -42,10 +48,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!result) continue;
     const phase = PHASES.find(p => p.id === fixture.phase);
     if (!phase || phase.scoringType !== 'pool') continue;
-    const correctCount = allLeaguePredictions.filter(
+    const correctCount = memberPredictions.filter(
       p => p.matchNumber === fixture.matchNumber && p.predictedWinner === result
     ).length;
-    poolByMatch.set(fixture.matchNumber, correctCount > 0 ? Math.floor((phase.poolPoints ?? 80) / correctCount) : 0);
+    poolByMatch.set(fixture.matchNumber, correctCount > 0 ? (phase.poolPoints ?? 80) / correctCount : 0);
   }
 
   const predMap = new Map(predictions.map(p => [p.matchNumber, p]));
@@ -60,7 +66,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const pred = predMap.get(fixture.matchNumber);
     const result = resultMap.get(fixture.matchNumber) ?? null;
     const correct = result !== null && pred ? pred.predictedWinner === result : null;
-    const pickPoints = correct ? (poolByMatch.get(fixture.matchNumber) ?? 0) : 0;
+    const chip = userChips.find(c => c.matchNumber === fixture.matchNumber && c.phase === fixture.phase);
+    const chipType = chip?.chipType ?? null;
+    const multiplier = chipType === 'banker' ? 3 : chipType === 'doubleUp' ? 2 : 1;
+    const baseShare = poolByMatch.get(fixture.matchNumber) ?? 0;
+    const pickPoints = correct ? Math.floor(baseShare * multiplier) : 0;
 
     const actualScore = scoreResultMap.get(fixture.matchNumber) ?? null;
     const predictedGoals1 = pred?.goals1 ?? null;
@@ -92,6 +102,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       predictedGoals2,
       submittedAt: pred?.submittedAt?.toISOString() ?? null,
       isLate: pred?.isLate ?? false,
+      chipType,
       actualResult: result,
       actualGoals1: actualScore?.goals1 ?? null,
       actualGoals2: actualScore?.goals2 ?? null,
