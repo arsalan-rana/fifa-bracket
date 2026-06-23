@@ -37,15 +37,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const phaseIsLate = isPhasePastDeadline(phase);
   const phaseConfig = getPhaseConfig(phase);
 
-  if (phaseIsLate && !league?.allowLateSubmission) {
-    return res.status(423).json({ error: 'The deadline has passed — picks are locked.' });
-  }
-
-  // Pre-fetch wildcard chips to exempt specific matches from the late penalty
+  // Fetch wildcard chips BEFORE the deadline check so we can exempt those matches
   const wildcardChips = await db.chipUsage.findMany({
     where: { userId: user.id, leagueId, chipType: 'wildcard' },
   });
   const wildcardMatchNumbers = new Set(wildcardChips.map((c) => c.matchNumber).filter((n): n is number => n !== null));
+
+  if (phaseIsLate && !league?.allowLateSubmission) {
+    // Still allow submissions if ALL requested picks are covered by a wildcard chip
+    const allWildcard = predictions.every((p) => wildcardMatchNumbers.has(p.matchNumber));
+    if (!allWildcard) {
+      return res.status(423).json({ error: 'The deadline has passed — picks are locked.' });
+    }
+  }
 
   // Validate each prediction
   const now = new Date();
@@ -80,7 +84,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         select: { matchNumber: true },
       });
       const lockedNums = new Set(lockedPreds.map((p) => p.matchNumber));
-      predsToSave = predsToSave.filter((p) => !lockedNums.has(p.matchNumber));
+      // Wildcard chip allows overwriting a previously on-time pick for that specific match
+      predsToSave = predsToSave.filter((p) => !lockedNums.has(p.matchNumber) || wildcardMatchNumbers.has(p.matchNumber));
 
       if (predsToSave.length === 0) {
         return res.status(200).json({ success: true, count: 0, isLate: true, allLocked: true });

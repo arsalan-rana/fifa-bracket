@@ -621,10 +621,10 @@ export default function BracketPage({ params }: Props) {
       .filter((f) => predictions[f.matchNumber] && new Date(f.date) > now)
       .map((f) => ({ matchNumber: f.matchNumber, predictedWinner: predictions[f.matchNumber] }));
 
-    // After deadline: only send genuinely new picks (not already in DB as on-time).
+    // After deadline: only send genuinely new picks OR wildcard-covered matches (which can override on-time picks).
     // The server enforces this too, but filtering client-side avoids a pointless round-trip.
     const phasePredictions = isPastDeadline
-      ? unstartedPicks.filter((p) => savedPredictions[p.matchNumber] === undefined)
+      ? unstartedPicks.filter((p) => savedPredictions[p.matchNumber] === undefined || wildcardMatchNums.has(p.matchNumber))
       : unstartedPicks;
 
     if (phasePredictions.length === 0) {
@@ -654,10 +654,12 @@ export default function BracketPage({ params }: Props) {
           for (const p of phasePredictions) updated[p.matchNumber] = p.predictedWinner;
           return updated;
         });
-        const lateNote = data.isLate ? ' · marked late' : '';
+        const wildcardSave = isPastDeadline && hasActiveWildcard && !allowLateSubmission;
+        const lateNote = data.isLate && !wildcardSave ? ' · marked late' : '';
+        const wildcardNote = wildcardSave ? ' · wildcard used, no penalty' : '';
         const missingNote = missing > 0 ? ` · ${missing} match${missing === 1 ? '' : 'es'} still unpicked` : '';
         setSnack({
-          msg: `${data.count} pick${data.count === 1 ? '' : 's'} saved${lateNote}${missingNote}`,
+          msg: `${data.count} pick${data.count === 1 ? '' : 's'} saved${lateNote}${wildcardNote}${missingNote}`,
           severity: missing > 0 ? 'warning' : 'success',
         });
       } else {
@@ -686,6 +688,14 @@ export default function BracketPage({ params }: Props) {
   const unstartedWithPicks = unstartedFixtures.filter((f) => predictions[f.matchNumber]).length;
   const startedCount = totalGroupMatches - unstartedFixtures.length;
 
+  // Matches that are unlocked by a wildcard chip
+  const wildcardMatchNums = new Set(
+    Object.values(chips)
+      .filter((c) => c.chipType === 'wildcard' && c.matchNumber !== null)
+      .map((c) => c.matchNumber as number)
+  );
+  const hasActiveWildcard = wildcardMatchNums.size > 0;
+
   // True if any unstarted match has a local pick that differs from what's in the DB
   const hasUnsavedChanges = unstartedFixtures.some(
     (f) => predictions[f.matchNumber] !== savedPredictions[f.matchNumber],
@@ -706,7 +716,9 @@ export default function BracketPage({ params }: Props) {
               label={`${phaseConfig.icon} ${phaseConfig.name} Active`}
               sx={{ background: `${phaseConfig.color}22`, color: phaseConfig.color, fontWeight: 700 }}
             />
-            {isPastDeadline && !allowLateSubmission ? (
+            {isPastDeadline && !allowLateSubmission && hasActiveWildcard ? (
+              <Chip label="🃏 Wildcard unlocked" sx={{ bgcolor: 'rgba(167,139,250,0.15)', color: '#a78bfa', fontWeight: 700, border: '1px solid rgba(167,139,250,0.4)' }} />
+            ) : isPastDeadline && !allowLateSubmission ? (
               <Chip label="🔒 Locked — deadline passed" color="error" />
             ) : isPastDeadline && allowLateSubmission ? (
               <Chip label="⚠️ Late submission — only upcoming matches" color="warning" />
@@ -770,7 +782,12 @@ export default function BracketPage({ params }: Props) {
             </Box>
           )}
 
-          {isPastDeadline && !allowLateSubmission && (
+          {isPastDeadline && !allowLateSubmission && hasActiveWildcard && (
+            <Alert severity="info" sx={{ mt: 2, borderRadius: 2, background: 'rgba(167,139,250,0.08)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)' }}>
+              🃏 Your wildcard is applied — change the pick on the unlocked match below, then hit Save.
+            </Alert>
+          )}
+          {isPastDeadline && !allowLateSubmission && !hasActiveWildcard && (
             <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
               🔒 Picks are locked. The deadline has passed and no further changes are accepted.
             </Alert>
@@ -815,8 +832,8 @@ export default function BracketPage({ params }: Props) {
           </Alert>
         )}
 
-        {/* Save all button — hidden after deadline (unless late submission open) */}
-        {(!isPastDeadline || allowLateSubmission) && (
+        {/* Save button — hidden after deadline unless late submission open or wildcard unlocked */}
+        {(!isPastDeadline || allowLateSubmission || hasActiveWildcard) && (
           <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
             <Button
               variant="contained"
@@ -824,10 +841,12 @@ export default function BracketPage({ params }: Props) {
               onClick={() => handleSubmit('group')}
               disabled={submitting || unstartedWithPicks === 0 || !isVerified}
               title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
-              sx={{ px: 4 }}
+              sx={{ px: 4, ...(isPastDeadline && hasActiveWildcard && !allowLateSubmission ? { bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } } : {}) }}
             >
               {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
-              {`Save All Picks (${completedGroupMatches}/${totalGroupMatches})`}
+              {isPastDeadline && hasActiveWildcard && !allowLateSubmission
+                ? '🃏 Save Wildcard Pick'
+                : `Save All Picks (${completedGroupMatches}/${totalGroupMatches})`}
             </Button>
             {hasUnsavedChanges && (
               <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600 }}>
@@ -948,24 +967,32 @@ export default function BracketPage({ params }: Props) {
         )}
 
         {/* Bottom save */}
-        <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Button
-            variant="contained"
-            size="large"
-            onClick={() => handleSubmit('group')}
-            disabled={submitting || unstartedWithPicks === 0 || !isVerified}
-            title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
-            sx={{ px: 6, py: 1.5 }}
-          >
-            {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : '✅ '}
-            {isPastDeadline ? `Update Picks (${unstartedWithPicks} upcoming)` : 'Save All Picks'}
-          </Button>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            {isPastDeadline
-              ? 'Picks for started matches are locked'
-              : 'You can come back and update until the deadline'}
-          </Typography>
-        </Box>
+        {(!isPastDeadline || allowLateSubmission || hasActiveWildcard) && (
+          <Box sx={{ mt: 3, textAlign: 'center' }}>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={() => handleSubmit('group')}
+              disabled={submitting || unstartedWithPicks === 0 || !isVerified}
+              title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
+              sx={{ px: 6, py: 1.5, ...(isPastDeadline && hasActiveWildcard && !allowLateSubmission ? { bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } } : {}) }}
+            >
+              {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : '✅ '}
+              {isPastDeadline && hasActiveWildcard && !allowLateSubmission
+                ? '🃏 Save Wildcard Pick'
+                : isPastDeadline
+                ? `Update Picks (${unstartedWithPicks} upcoming)`
+                : 'Save All Picks'}
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              {isPastDeadline && hasActiveWildcard && !allowLateSubmission
+                ? 'Only your wildcard match will be updated — all other picks are locked'
+                : isPastDeadline
+                ? 'Picks for started matches are locked'
+                : 'You can come back and update until the deadline'}
+            </Typography>
+          </Box>
+        )}
       </Container>
 
       <TeamInfoDrawer teamCode={teamDrawer} onClose={() => setTeamDrawer(null)} />
