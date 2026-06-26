@@ -34,6 +34,7 @@ import TeamInfoDrawer from '../../../components/TeamInfoDrawer';
 import {
   GROUPS,
   GROUP_FIXTURES,
+  ALL_FIXTURES,
   TEAMS,
   PHASES,
   getCurrentPhase,
@@ -413,6 +414,7 @@ export default function BracketPage({ params }: Props) {
   const [otherLeagues, setOtherLeagues] = useState<{ id: string; name: string; _count?: { members: number } }[]>([]);
   const [copySourceId, setCopySourceId] = useState('');
   const [copying, setCopying] = useState(false);
+  const [chipConfirmFixture, setChipConfirmFixture] = useState<Fixture | null>(null);
 
   const currentPhase = getCurrentPhase();
   const phaseConfig = PHASES.find((p) => p.id === currentPhase)!;
@@ -508,41 +510,49 @@ export default function BracketPage({ params }: Props) {
   }
 
   const handleApplyChip = useCallback(
-    async (matchNumber: number) => {
+    (matchNumber: number) => {
       if (!chipMode || !leagueId || chipSubmitting) return;
-      setChipSubmitting(true);
-      try {
-        const fixturePhase = GROUP_FIXTURES.find((f) => f.matchNumber === matchNumber)?.phase ?? currentPhase;
-        const res = await fetch('/api/submit-chips', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ leagueId, phase: fixturePhase, chipType: chipMode, matchNumber }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setChips((prev) => ({
-            ...prev,
-            [`${fixturePhase}:${chipMode}`]: { matchNumber, chipType: chipMode, phase: fixturePhase },
-          }));
-          setSnack({
-            msg:
-              chipMode === 'doubleUp'
-                ? `⚡ Double Up applied to Match ${matchNumber}!`
-                : `🃏 Wildcard applied to Match ${matchNumber}!`,
-            severity: 'success',
-          });
-          setChipMode(null);
-        } else {
-          setSnack({ msg: data.error || 'Failed to apply chip', severity: 'error' });
-        }
-      } catch {
-        setSnack({ msg: 'Network error', severity: 'error' });
-      } finally {
-        setChipSubmitting(false);
-      }
+      const fixture = ALL_FIXTURES.find((f) => f.matchNumber === matchNumber);
+      if (!fixture) return;
+      setChipConfirmFixture(fixture);
     },
-    [chipMode, leagueId, currentPhase, chipSubmitting],
+    [chipMode, leagueId, chipSubmitting],
   );
+
+  const handleConfirmChip = useCallback(async () => {
+    if (!chipConfirmFixture || !chipMode || !leagueId || chipSubmitting) return;
+    const { matchNumber, phase: fixturePhase } = chipConfirmFixture;
+    setChipConfirmFixture(null);
+    setChipSubmitting(true);
+    try {
+      const res = await fetch('/api/submit-chips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId, phase: fixturePhase, chipType: chipMode, matchNumber }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setChips((prev) => ({
+          ...prev,
+          [`${fixturePhase}:${chipMode}`]: { matchNumber, chipType: chipMode, phase: fixturePhase },
+        }));
+        setSnack({
+          msg:
+            chipMode === 'doubleUp'
+              ? `⚡ Double Up applied to Match ${matchNumber}!`
+              : `🃏 Wildcard applied to Match ${matchNumber}!`,
+          severity: 'success',
+        });
+        setChipMode(null);
+      } else {
+        setSnack({ msg: data.error || 'Failed to apply chip', severity: 'error' });
+      }
+    } catch {
+      setSnack({ msg: 'Network error', severity: 'error' });
+    } finally {
+      setChipSubmitting(false);
+    }
+  }, [chipConfirmFixture, chipMode, leagueId, chipSubmitting]);
 
   function handleAutoPick() {
     const phaseFixtures = GROUP_FIXTURES.filter((f) => f.phase === currentPhase);
@@ -1049,6 +1059,115 @@ export default function BracketPage({ params }: Props) {
             Copy Picks
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Chip confirmation dialog */}
+      <Dialog
+        open={!!chipConfirmFixture}
+        onClose={() => setChipConfirmFixture(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        {chipConfirmFixture && chipMode && (() => {
+          const isDoubleUp = chipMode === 'doubleUp';
+          const accentColor = isDoubleUp ? '#C9A73A' : '#7c3aed';
+          const t1 = TEAMS[chipConfirmFixture.team1];
+          const t2 = TEAMS[chipConfirmFixture.team2];
+          const matchDate = new Date(chipConfirmFixture.date);
+          return (
+            <>
+              <DialogTitle sx={{ pb: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Box sx={{ fontSize: '2.2rem', lineHeight: 1 }}>{isDoubleUp ? '⚡' : '🃏'}</Box>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                      Apply {isDoubleUp ? 'Double Up' : 'Wildcard'} Chip?
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      This cannot be undone
+                    </Typography>
+                  </Box>
+                </Box>
+              </DialogTitle>
+              <DialogContent sx={{ pt: 0 }}>
+                {/* Match card */}
+                <Box
+                  sx={{
+                    my: 2,
+                    p: 2,
+                    bgcolor: 'action.hover',
+                    borderRadius: 2,
+                    textAlign: 'center',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                    Match {chipConfirmFixture.matchNumber} · {chipConfirmFixture.city} ·{' '}
+                    {matchDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography sx={{ fontSize: '2rem', lineHeight: 1 }}>{t1?.flag ?? '🏳️'}</Typography>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 0.5 }}>
+                        {t1?.name ?? chipConfirmFixture.team1}
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>vs</Typography>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography sx={{ fontSize: '2rem', lineHeight: 1 }}>{t2?.flag ?? '🏳️'}</Typography>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 0.5 }}>
+                        {t2?.name ?? chipConfirmFixture.team2}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+                {/* Effect description */}
+                <Box
+                  sx={{
+                    p: 2,
+                    bgcolor: isDoubleUp ? 'rgba(201,167,58,0.08)' : 'rgba(124,58,237,0.08)',
+                    border: `1px solid ${accentColor}40`,
+                    borderRadius: 2,
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ color: accentColor, fontWeight: 700, mb: 0.5 }}>
+                    {isDoubleUp ? '⚡ 2× Points' : '🃏 Unlock After Deadline'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {isDoubleUp
+                      ? 'If your pick wins, you earn double the pool points for this match. You only get one Double Up chip per phase.'
+                      : 'This match will be unlocked — change your pick after the deadline with no late penalty. You only get one Wildcard chip per phase.'}
+                  </Typography>
+                </Box>
+              </DialogContent>
+              <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+                <Button
+                  onClick={() => setChipConfirmFixture(null)}
+                  variant="outlined"
+                  color="inherit"
+                  sx={{ flex: 1 }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmChip}
+                  variant="contained"
+                  disabled={chipSubmitting}
+                  sx={{
+                    flex: 1,
+                    bgcolor: accentColor,
+                    fontWeight: 700,
+                    '&:hover': { bgcolor: isDoubleUp ? '#b8952e' : '#6d28d9' },
+                  }}
+                >
+                  {chipSubmitting ? <CircularProgress size={16} sx={{ mr: 1 }} /> : null}
+                  {isDoubleUp ? '⚡ Apply Double Up' : '🃏 Apply Wildcard'}
+                </Button>
+              </DialogActions>
+            </>
+          );
+        })()}
       </Dialog>
 
       <Snackbar

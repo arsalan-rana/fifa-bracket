@@ -423,7 +423,7 @@ export const PHASES: PhaseConfig[] = [
     id: 'round32',
     name: 'Round of 32',
     shortName: 'R32',
-    deadline: '2026-06-27T22:00:00Z',
+    deadline: '2026-06-28T18:59:00Z',
     color: '#6366F1',
     icon: '⚽',
     scoringType: 'pool',
