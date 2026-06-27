@@ -20,6 +20,7 @@ import DialogActions from '@mui/material/DialogActions';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CloseIcon from '@mui/icons-material/Close';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Snackbar from '@mui/material/Snackbar';
@@ -39,6 +40,7 @@ import {
   PHASES,
   getCurrentPhase,
   isPhasePastDeadline,
+  getFixturesByPhase,
   type Fixture,
   type Phase,
 } from '../../../../data/fifa-2026';
@@ -415,10 +417,19 @@ export default function BracketPage({ params }: Props) {
   const [copySourceId, setCopySourceId] = useState('');
   const [copying, setCopying] = useState(false);
   const [chipConfirmFixture, setChipConfirmFixture] = useState<Fixture | null>(null);
+  const [wildcardFixture, setWildcardFixture] = useState<Fixture | null>(null);
+  const [wildcardNewPick, setWildcardNewPick] = useState<string>('');
 
   const currentPhase = getCurrentPhase();
-  const phaseConfig = PHASES.find((p) => p.id === currentPhase)!;
-  const isPastDeadline = isPhasePastDeadline(currentPhase);
+  const [viewPhase, setViewPhase] = useState<Phase>(currentPhase);
+
+  const phaseConfig = PHASES.find((p) => p.id === viewPhase)!;
+  const isPastDeadline = isPhasePastDeadline(viewPhase);
+
+  // Which phases have fixtures populated (not all-TBD)
+  const availablePhases = PHASES.filter((p) =>
+    ALL_FIXTURES.some((f) => f.phase === p.id && f.team1 !== 'TBD')
+  );
 
   // ESC to cancel chip mode
   useEffect(() => {
@@ -461,18 +472,20 @@ export default function BracketPage({ params }: Props) {
           setChips(chipMap);
         }
 
-        // Fetch league-wide pick counts for this phase
-        const picksRes = await fetch(`/api/league-picks?leagueId=${leagueData.id}&phase=${currentPhase}`);
-        if (picksRes.ok) {
-          const picksData = await picksRes.json();
-          setLeaguePicks(picksData.picks ?? {});
-        }
       } finally {
         setLoading(false);
       }
     }
     load();
   }, [slug]);
+
+  // Re-fetch league pick distribution whenever the viewed phase changes
+  useEffect(() => {
+    if (!leagueId) return;
+    fetch(`/api/league-picks?leagueId=${leagueId}&phase=${viewPhase}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setLeaguePicks(d.picks ?? {}); });
+  }, [leagueId, viewPhase]);
 
   function setPrediction(matchNumber: number, winner: string) {
     setPredictions((prev) => ({ ...prev, [matchNumber]: winner }));
@@ -498,11 +511,11 @@ export default function BracketPage({ params }: Props) {
     return getGroupFixtures(group).filter((f) => predictions[f.matchNumber]).length;
   }
 
-  /** Returns the chipType applied to a given match in the current phase, if any */
+  /** Returns the chipType applied to a given match in the viewed phase, if any */
   function getChipForMatch(matchNumber: number): string | undefined {
     for (const key of Object.keys(chips)) {
       const usage = chips[key];
-      if (usage.phase === currentPhase && usage.matchNumber === matchNumber) {
+      if (usage.phase === viewPhase && usage.matchNumber === matchNumber) {
         return usage.chipType;
       }
     }
@@ -514,10 +527,60 @@ export default function BracketPage({ params }: Props) {
       if (!chipMode || !leagueId || chipSubmitting) return;
       const fixture = ALL_FIXTURES.find((f) => f.matchNumber === matchNumber);
       if (!fixture) return;
-      setChipConfirmFixture(fixture);
+      if (chipMode === 'wildcard') {
+        setWildcardFixture(fixture);
+        setWildcardNewPick('');
+      } else {
+        setChipConfirmFixture(fixture);
+      }
     },
     [chipMode, leagueId, chipSubmitting],
   );
+
+  const handleApplyWildcard = useCallback(async () => {
+    if (!wildcardFixture || !wildcardNewPick || !leagueId || chipSubmitting) return;
+    const { matchNumber, phase: fixturePhase } = wildcardFixture;
+    const currentPick = savedPredictions[matchNumber] ?? predictions[matchNumber];
+    if (wildcardNewPick === currentPick) return;
+    setChipSubmitting(true);
+    try {
+      const chipRes = await fetch('/api/submit-chips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId, phase: fixturePhase, chipType: 'wildcard', matchNumber }),
+      });
+      if (!chipRes.ok) {
+        const err = await chipRes.json();
+        setSnack({ msg: err.error || 'Failed to apply wildcard', severity: 'error' });
+        return;
+      }
+      const predRes = await fetch('/api/submit-prediction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId, phase: fixturePhase, predictions: [{ matchNumber, predictedWinner: wildcardNewPick }] }),
+      });
+      const predData = await predRes.json();
+      if (predRes.ok) {
+        setChips((prev) => ({
+          ...prev,
+          [`${fixturePhase}:wildcard`]: { matchNumber, chipType: 'wildcard', phase: fixturePhase },
+        }));
+        setPredictions((prev) => ({ ...prev, [matchNumber]: wildcardNewPick }));
+        setSavedPredictions((prev) => ({ ...prev, [matchNumber]: wildcardNewPick }));
+        const teamName = wildcardNewPick === 'DRAW' ? 'Draw' : (TEAMS[wildcardNewPick]?.name ?? wildcardNewPick);
+        setSnack({ msg: `🃏 Wildcard applied — ${teamName} saved, no penalty`, severity: 'success' });
+        setWildcardFixture(null);
+        setWildcardNewPick('');
+        setChipMode(null);
+      } else {
+        setSnack({ msg: predData.error || 'Failed to save pick', severity: 'error' });
+      }
+    } catch {
+      setSnack({ msg: 'Network error', severity: 'error' });
+    } finally {
+      setChipSubmitting(false);
+    }
+  }, [wildcardFixture, wildcardNewPick, savedPredictions, predictions, leagueId, chipSubmitting]);
 
   const handleConfirmChip = useCallback(async () => {
     if (!chipConfirmFixture || !chipMode || !leagueId || chipSubmitting) return;
@@ -555,7 +618,7 @@ export default function BracketPage({ params }: Props) {
   }, [chipConfirmFixture, chipMode, leagueId, chipSubmitting]);
 
   function handleAutoPick() {
-    const phaseFixtures = GROUP_FIXTURES.filter((f) => f.phase === currentPhase);
+    const phaseFixtures = getFixturesByPhase(viewPhase);
     let filled = 0;
     const newPredictions: Predictions = { ...predictions };
     for (const f of phaseFixtures) {
@@ -625,7 +688,7 @@ export default function BracketPage({ params }: Props) {
     setSubmitting(true);
 
     const now = new Date();
-    const phaseFixtures = GROUP_FIXTURES.filter((f) => f.phase === phase);
+    const phaseFixtures = getFixturesByPhase(phase);
     // Only submit picks for matches that haven't started — server hard-rejects started matches
     const unstartedPicks = phaseFixtures
       .filter((f) => predictions[f.matchNumber] && new Date(f.date) > now)
@@ -690,18 +753,19 @@ export default function BracketPage({ params }: Props) {
     );
   }
 
-  const totalGroupMatches = GROUP_FIXTURES.length;
-  const completedGroupMatches = GROUP_FIXTURES.filter((f) => predictions[f.matchNumber]).length;
+  const viewPhaseFixtures = getFixturesByPhase(viewPhase);
+  const totalPhaseMatches = viewPhaseFixtures.length;
+  const completedPhaseMatches = viewPhaseFixtures.filter((f) => predictions[f.matchNumber]).length;
 
   const nowRender = new Date();
-  const unstartedFixtures = GROUP_FIXTURES.filter((f) => new Date(f.date) > nowRender);
+  const unstartedFixtures = viewPhaseFixtures.filter((f) => f.team1 !== 'TBD' && f.team2 !== 'TBD' && new Date(f.date) > nowRender);
   const unstartedWithPicks = unstartedFixtures.filter((f) => predictions[f.matchNumber]).length;
-  const startedCount = totalGroupMatches - unstartedFixtures.length;
+  const startedCount = viewPhaseFixtures.filter((f) => new Date(f.date) <= nowRender).length;
 
-  // Matches that are unlocked by a wildcard chip
+  // Wildcard chips active for the viewed phase
   const wildcardMatchNums = new Set(
     Object.values(chips)
-      .filter((c) => c.chipType === 'wildcard' && c.matchNumber !== null)
+      .filter((c) => c.chipType === 'wildcard' && c.phase === viewPhase && c.matchNumber !== null)
       .map((c) => c.matchNumber as number)
   );
   const hasActiveWildcard = wildcardMatchNums.size > 0;
@@ -721,9 +785,43 @@ export default function BracketPage({ params }: Props) {
             Submit Your Picks
           </Typography>
 
+          {/* Phase switcher */}
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+            {availablePhases.map((p) => {
+              const isView = viewPhase === p.id;
+              const isCurrent = p.id === currentPhase;
+              const isPast = isPhasePastDeadline(p.id);
+              return (
+                <Button
+                  key={p.id}
+                  size="small"
+                  variant={isView ? 'contained' : 'outlined'}
+                  onClick={() => setViewPhase(p.id as Phase)}
+                  sx={{
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    borderRadius: 2,
+                    px: 1.5,
+                    ...(isView
+                      ? { bgcolor: p.color, '&:hover': { bgcolor: p.color, opacity: 0.9 }, color: '#fff' }
+                      : { borderColor: p.color, color: p.color, '&:hover': { bgcolor: `${p.color}11` } }),
+                  }}
+                >
+                  {p.icon} {p.shortName}
+                  {isCurrent && !isPast && (
+                    <Box component="span" sx={{ ml: 0.5, fontSize: '0.6rem', opacity: 0.8 }}>● OPEN</Box>
+                  )}
+                  {isPast && (
+                    <Box component="span" sx={{ ml: 0.5, fontSize: '0.6rem', opacity: 0.6 }}>🔒</Box>
+                  )}
+                </Button>
+              );
+            })}
+          </Box>
+
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
             <Chip
-              label={`${phaseConfig.icon} ${phaseConfig.name} Active`}
+              label={isPastDeadline ? `${phaseConfig.icon} ${phaseConfig.name} — Locked` : `${phaseConfig.icon} ${phaseConfig.name} — Open`}
               sx={{ background: `${phaseConfig.color}22`, color: phaseConfig.color, fontWeight: 700 }}
             />
             {isPastDeadline && !allowLateSubmission && hasActiveWildcard ? (
@@ -743,11 +841,9 @@ export default function BracketPage({ params }: Props) {
 
           {/* Progress */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Typography variant="body2" color="text.secondary">
-              Group stage picks:
-            </Typography>
+            <Typography variant="body2" color="text.secondary">{phaseConfig.name} picks:</Typography>
             <Typography variant="body2" sx={{ fontWeight: 700 }} color="secondary.main">
-              {completedGroupMatches}/{totalGroupMatches}
+              {completedPhaseMatches}/{totalPhaseMatches}
             </Typography>
             {startedCount > 0 && (
               <Typography variant="body2" color="text.disabled" sx={{ fontSize: '0.8rem' }}>
@@ -757,7 +853,7 @@ export default function BracketPage({ params }: Props) {
                 )}
               </Typography>
             )}
-            {completedGroupMatches === totalGroupMatches && startedCount === 0 && (
+            {completedPhaseMatches === totalPhaseMatches && startedCount === 0 && (
               <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>✓ all submitted</Typography>
             )}
           </Box>
@@ -765,7 +861,7 @@ export default function BracketPage({ params }: Props) {
           {/* AI Autopick + Copy Picks — hidden after deadline */}
           {!isPastDeadline && (
             <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-              {isVerified && GROUP_FIXTURES.filter((f) => f.phase === currentPhase && !predictions[f.matchNumber] && f.aiPrediction).length > 0 && (
+              {isVerified && viewPhaseFixtures.filter((f) => !predictions[f.matchNumber] && f.aiPrediction).length > 0 && (
                 <Button
                   variant="outlined"
                   size="small"
@@ -815,10 +911,10 @@ export default function BracketPage({ params }: Props) {
           )}
         </Box>
 
-        {/* Chips Panel — shown only when phase has chips */}
-        {phaseConfig.chipsAvailable.length > 0 && (
+        {/* Chips Panel — shown only when viewing the active picks phase and it has chips */}
+        {viewPhase === currentPhase && phaseConfig.chipsAvailable.length > 0 && (
           <ChipsPanel
-            phase={currentPhase}
+            phase={viewPhase}
             chips={chips}
             chipMode={chipMode}
             onSelectChipMode={setChipMode}
@@ -848,15 +944,12 @@ export default function BracketPage({ params }: Props) {
             <Button
               variant="contained"
               size="large"
-              onClick={() => handleSubmit('group')}
+              onClick={() => handleSubmit(viewPhase)}
               disabled={submitting || unstartedWithPicks === 0 || !isVerified}
               title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
-              sx={{ px: 4, ...(isPastDeadline && hasActiveWildcard && !allowLateSubmission ? { bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } } : {}) }}
             >
               {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : null}
-              {isPastDeadline && hasActiveWildcard && !allowLateSubmission
-                ? '🃏 Save Wildcard Pick'
-                : `Save All Picks (${completedGroupMatches}/${totalGroupMatches})`}
+              Save Picks ({unstartedWithPicks} ready)
             </Button>
             {hasUnsavedChanges && (
               <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600 }}>
@@ -866,115 +959,119 @@ export default function BracketPage({ params }: Props) {
           </Box>
         )}
 
-        {/* Groups */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>Group Stage</Typography>
-          <ToggleButtonGroup
-            value={groupBy}
-            exclusive
-            onChange={(_, v) => { if (v) setGroupBy(v); }}
-            size="small"
-          >
-            <ToggleButton value="group" sx={{ gap: 0.5, px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
-              <GroupWorkIcon sx={{ fontSize: 15 }} /> By Group
-            </ToggleButton>
-            <ToggleButton value="date" sx={{ gap: 0.5, px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
-              <CalendarTodayIcon sx={{ fontSize: 15 }} /> By Date
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-
-        {groupBy === 'group' ? (
-          GROUPS.map((group) => {
-            const fixtures = getGroupFixtures(group);
-            const done = groupCompletionCount(group);
-            const teams = [...new Set(fixtures.flatMap((f) => [f.team1, f.team2]))].map((c) => TEAMS[c]);
-
-            return (
-              <Accordion
-                key={group}
-                expanded={expanded === `group-${group}`}
-                onChange={(_, isExpanded) => setExpanded(isExpanded ? `group-${group}` : '')}
-                sx={{
-                  bgcolor: 'background.paper',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 2,
-                  mb: 1.5,
-                  '&:before': { display: 'none' },
-                }}
-              >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-                    <Typography sx={{ fontWeight: 800, minWidth: 80 }}>Group {group}</Typography>
-                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flexGrow: 1 }}>
-                      {teams.map(
-                        (t) =>
-                          t && (
-                            <Chip
-                              key={t.code}
-                              label={`${t.flag} ${t.code}`}
-                              size="small"
-                              sx={{ fontSize: '0.7rem', height: 20, background: `${t.primaryColor}33`, color: 'text.primary' }}
-                            />
-                          ),
-                      )}
-                    </Box>
-                    <Chip
-                      label={`${done}/${fixtures.length}`}
-                      size="small"
-                      color={done === fixtures.length ? 'success' : done > 0 ? 'warning' : 'default'}
-                      sx={{ minWidth: 50, fontWeight: 700 }}
-                    />
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0 }}>
+        {/* Group stage: accordion by group OR by date */}
+        {viewPhase === 'group' && (
+          <>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>Group Stage</Typography>
+              <ToggleButtonGroup value={groupBy} exclusive onChange={(_, v) => { if (v) setGroupBy(v); }} size="small">
+                <ToggleButton value="group" sx={{ gap: 0.5, px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
+                  <GroupWorkIcon sx={{ fontSize: 15 }} /> By Group
+                </ToggleButton>
+                <ToggleButton value="date" sx={{ gap: 0.5, px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
+                  <CalendarTodayIcon sx={{ fontSize: 15 }} /> By Date
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+            {groupBy === 'group' ? (
+              GROUPS.map((group) => {
+                const fixtures = getGroupFixtures(group);
+                const done = groupCompletionCount(group);
+                const teams = [...new Set(fixtures.flatMap((f) => [f.team1, f.team2]))].map((c) => TEAMS[c]);
+                return (
+                  <Accordion
+                    key={group}
+                    expanded={expanded === `group-${group}`}
+                    onChange={(_, isExpanded) => setExpanded(isExpanded ? `group-${group}` : '')}
+                    sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 1.5, '&:before': { display: 'none' } }}
+                  >
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
+                        <Typography sx={{ fontWeight: 800, minWidth: 80 }}>Group {group}</Typography>
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flexGrow: 1 }}>
+                          {teams.map((t) => t && (
+                            <Chip key={t.code} label={`${t.flag} ${t.code}`} size="small"
+                              sx={{ fontSize: '0.7rem', height: 20, background: `${t.primaryColor}33`, color: 'text.primary' }} />
+                          ))}
+                        </Box>
+                        <Chip label={`${done}/${fixtures.length}`} size="small"
+                          color={done === fixtures.length ? 'success' : done > 0 ? 'warning' : 'default'}
+                          sx={{ minWidth: 50, fontWeight: 700 }} />
+                      </Box>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ pt: 0 }}>
+                      {fixtures.map((fixture) => (
+                        <MatchCard key={fixture.matchNumber} fixture={fixture}
+                          selected={predictions[fixture.matchNumber]}
+                          onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
+                          disabled={matchHasStarted(fixture)}
+                          chipActive={getChipForMatch(fixture.matchNumber)}
+                          chipMode={chipMode} onApplyChip={handleApplyChip}
+                          pickCounts={leaguePicks[fixture.matchNumber]}
+                          totalMembers={leagueMemberCount} onOpenTeamInfo={setTeamDrawer} />
+                      ))}
+                    </AccordionDetails>
+                  </Accordion>
+                );
+              })
+            ) : (
+              getMatchesByDate().map(({ dayLabel, fixtures }) => (
+                <Box key={dayLabel} sx={{ mb: 3 }}>
+                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, mb: 1.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: 0.5 }}>
+                    {dayLabel} · {fixtures.length} match{fixtures.length !== 1 ? 'es' : ''}
+                  </Typography>
                   {fixtures.map((fixture) => (
-                    <MatchCard
-                      key={fixture.matchNumber}
-                      fixture={fixture}
+                    <MatchCard key={fixture.matchNumber} fixture={fixture}
                       selected={predictions[fixture.matchNumber]}
                       onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
                       disabled={matchHasStarted(fixture)}
                       chipActive={getChipForMatch(fixture.matchNumber)}
-                      chipMode={chipMode}
-                      onApplyChip={handleApplyChip}
+                      chipMode={chipMode} onApplyChip={handleApplyChip}
                       pickCounts={leaguePicks[fixture.matchNumber]}
-                      totalMembers={leagueMemberCount}
-                      onOpenTeamInfo={setTeamDrawer}
-                    />
+                      totalMembers={leagueMemberCount} onOpenTeamInfo={setTeamDrawer} />
                   ))}
-                </AccordionDetails>
-              </Accordion>
-            );
-          })
-        ) : (
-          getMatchesByDate().map(({ dayLabel, fixtures }) => (
-            <Box key={dayLabel} sx={{ mb: 3 }}>
-              <Typography
-                variant="caption"
-                sx={{ display: 'block', fontWeight: 700, mb: 1.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: 0.5 }}
-              >
-                {dayLabel} · {fixtures.length} match{fixtures.length !== 1 ? 'es' : ''}
-              </Typography>
-              {fixtures.map((fixture) => (
-                <MatchCard
-                  key={fixture.matchNumber}
-                  fixture={fixture}
-                  selected={predictions[fixture.matchNumber]}
-                  onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
-                  disabled={matchHasStarted(fixture)}
-                  chipActive={getChipForMatch(fixture.matchNumber)}
-                  chipMode={chipMode}
-                  onApplyChip={handleApplyChip}
-                  pickCounts={leaguePicks[fixture.matchNumber]}
-                  totalMembers={leagueMemberCount}
-                  onOpenTeamInfo={setTeamDrawer}
-                />
+                </Box>
+              ))
+            )}
+          </>
+        )}
+
+        {/* Knockout phases: flat date-grouped list */}
+        {viewPhase !== 'group' && (() => {
+          const sorted = [...viewPhaseFixtures].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          const byDay = new Map<string, Fixture[]>();
+          for (const f of sorted) {
+            const label = new Date(f.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+            if (!byDay.has(label)) byDay.set(label, []);
+            byDay.get(label)!.push(f);
+          }
+          return (
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>{phaseConfig.name}</Typography>
+              {[...byDay.entries()].map(([dayLabel, fixtures]) => (
+                <Box key={dayLabel} sx={{ mb: 3 }}>
+                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, mb: 1.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: 0.5 }}>
+                    {dayLabel} · {fixtures.length} match{fixtures.length !== 1 ? 'es' : ''}
+                  </Typography>
+                  {fixtures.map((fixture) => {
+                    const isTbd = fixture.team1 === 'TBD' || fixture.team2 === 'TBD';
+                    return (
+                      <MatchCard key={fixture.matchNumber} fixture={fixture}
+                        selected={predictions[fixture.matchNumber]}
+                        onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
+                        disabled={isTbd || matchHasStarted(fixture)}
+                        chipActive={getChipForMatch(fixture.matchNumber)}
+                        chipMode={isTbd ? null : chipMode}
+                        onApplyChip={handleApplyChip}
+                        pickCounts={leaguePicks[fixture.matchNumber]}
+                        totalMembers={leagueMemberCount} onOpenTeamInfo={setTeamDrawer} />
+                    );
+                  })}
+                </Box>
               ))}
             </Box>
-          ))
-        )}
+          );
+        })()}
 
         {/* Bottom save */}
         {(!isPastDeadline || allowLateSubmission || hasActiveWildcard) && (
@@ -982,17 +1079,13 @@ export default function BracketPage({ params }: Props) {
             <Button
               variant="contained"
               size="large"
-              onClick={() => handleSubmit('group')}
+              onClick={() => handleSubmit(viewPhase)}
               disabled={submitting || unstartedWithPicks === 0 || !isVerified}
               title={!isVerified ? 'Your buy-in payment is pending verification' : undefined}
-              sx={{ px: 6, py: 1.5, ...(isPastDeadline && hasActiveWildcard && !allowLateSubmission ? { bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } } : {}) }}
+              sx={{ px: 6, py: 1.5 }}
             >
               {submitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : '✅ '}
-              {isPastDeadline && hasActiveWildcard && !allowLateSubmission
-                ? '🃏 Save Wildcard Pick'
-                : isPastDeadline
-                ? `Update Picks (${unstartedWithPicks} upcoming)`
-                : 'Save All Picks'}
+              Save Picks ({unstartedWithPicks} ready)
             </Button>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
               {isPastDeadline && hasActiveWildcard && !allowLateSubmission
@@ -1061,7 +1154,123 @@ export default function BracketPage({ params }: Props) {
         </DialogActions>
       </Dialog>
 
-      {/* Chip confirmation dialog */}
+      {/* Wildcard pick modal */}
+      <Dialog
+        open={!!wildcardFixture}
+        onClose={() => { setWildcardFixture(null); setWildcardNewPick(''); }}
+        maxWidth="xs"
+        fullWidth
+        sx={{ '& .MuiDialog-paper': { borderRadius: 3 } }}
+      >
+        {wildcardFixture && (() => {
+          const t1 = TEAMS[wildcardFixture.team1];
+          const t2 = TEAMS[wildcardFixture.team2];
+          const currentPick = savedPredictions[wildcardFixture.matchNumber] ?? predictions[wildcardFixture.matchNumber];
+          const opts = [
+            { code: wildcardFixture.team1, label: t1?.name ?? wildcardFixture.team1, flag: t1?.flag ?? '🏳️' },
+            ...(wildcardFixture.canDraw ? [{ code: 'DRAW', label: 'Draw', flag: '🤝' }] : []),
+            { code: wildcardFixture.team2, label: t2?.name ?? wildcardFixture.team2, flag: t2?.flag ?? '🏳️' },
+          ];
+          const matchDate = new Date(wildcardFixture.date);
+          const isChanged = !!wildcardNewPick && wildcardNewPick !== currentPick;
+          return (
+            <>
+              <DialogTitle sx={{ pb: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Typography sx={{ fontSize: '1.6rem', lineHeight: 1 }}>🃏</Typography>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }}>Wildcard Pick</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        M{wildcardFixture.matchNumber} · {wildcardFixture.city} ·{' '}
+                        {matchDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <IconButton size="small" onClick={() => { setWildcardFixture(null); setWildcardNewPick(''); }}>
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              </DialogTitle>
+              <DialogContent sx={{ pt: 1.5 }}>
+                {/* Teams */}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, py: 2.5, mb: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography sx={{ fontSize: '2.8rem', lineHeight: 1 }}>{t1?.flag ?? '🏳️'}</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 0.5 }}>{t1?.name ?? wildcardFixture.team1}</Typography>
+                  </Box>
+                  <Typography color="text.secondary" sx={{ fontWeight: 700, fontSize: '1rem' }}>vs</Typography>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography sx={{ fontSize: '2.8rem', lineHeight: 1 }}>{t2?.flag ?? '🏳️'}</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 0.5 }}>{t2?.name ?? wildcardFixture.team2}</Typography>
+                  </Box>
+                </Box>
+
+                {/* Pick options */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {opts.map((opt) => {
+                    const isCurrent = opt.code === currentPick;
+                    const isSelected = opt.code === wildcardNewPick;
+                    return (
+                      <Button
+                        key={opt.code}
+                        variant={isSelected ? 'contained' : 'outlined'}
+                        onClick={() => setWildcardNewPick(isCurrent ? '' : opt.code)}
+                        disabled={isCurrent}
+                        sx={{
+                          py: 1.5,
+                          pl: 2.5,
+                          justifyContent: 'flex-start',
+                          gap: 1.5,
+                          fontSize: '0.95rem',
+                          fontWeight: isSelected ? 700 : 500,
+                          borderColor: isSelected ? '#7c3aed' : 'divider',
+                          bgcolor: isSelected ? '#7c3aed' : 'transparent',
+                          color: isSelected ? '#fff' : isCurrent ? 'text.disabled' : 'text.primary',
+                          '&:hover': { bgcolor: isSelected ? '#6d28d9' : 'rgba(124,58,237,0.06)', borderColor: '#7c3aed' },
+                          '&.Mui-disabled': { color: 'text.disabled', borderColor: 'divider', bgcolor: 'action.hover' },
+                        }}
+                      >
+                        <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{opt.flag}</span>
+                        {opt.label}
+                        {isCurrent && (
+                          <Chip label="your pick" size="small" sx={{ ml: 'auto', mr: 0.5, height: 20, fontSize: '0.6rem', bgcolor: 'action.selected' }} />
+                        )}
+                      </Button>
+                    );
+                  })}
+                </Box>
+
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, textAlign: 'center' }}>
+                  🃏 No late penalty · one wildcard chip per phase
+                </Typography>
+              </DialogContent>
+              <DialogActions sx={{ px: 3, pb: 3 }}>
+                <Button
+                  onClick={handleApplyWildcard}
+                  variant="contained"
+                  fullWidth
+                  disabled={!isChanged || chipSubmitting}
+                  sx={{
+                    py: 1.5,
+                    fontWeight: 700,
+                    fontSize: '1rem',
+                    borderRadius: 2,
+                    bgcolor: '#7c3aed',
+                    '&:hover': { bgcolor: '#6d28d9' },
+                    '&.Mui-disabled': { bgcolor: 'action.disabledBackground' },
+                  }}
+                >
+                  {chipSubmitting ? <CircularProgress size={20} sx={{ mr: 1 }} /> : '🃏 '}
+                  Apply Wildcard
+                </Button>
+              </DialogActions>
+            </>
+          );
+        })()}
+      </Dialog>
+
+      {/* doubleUp chip confirmation dialog */}
       <Dialog
         open={!!chipConfirmFixture}
         onClose={() => setChipConfirmFixture(null)}

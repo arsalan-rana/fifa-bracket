@@ -540,15 +540,10 @@ export function isPhasePastDeadline(phase: Phase): boolean {
 
 export function getCurrentPhase(): Phase {
   const now = new Date();
-  let current: Phase = PHASES[0].id;
   for (const phase of PHASES) {
-    if (now >= new Date(phase.deadline)) {
-      current = phase.id;
-    } else {
-      break;
-    }
+    if (now < new Date(phase.deadline)) return phase.id;
   }
-  return current;
+  return PHASES[PHASES.length - 1].id;
 }
 
 export function getTeam(code: string): Team | undefined {
