@@ -2,6 +2,24 @@ import { db } from './db';
 import { PHASES, ALL_FIXTURES, TOURNAMENT, BONUS_QUESTIONS, getPhaseConfig, type Phase } from '../data/fifa-2026';
 import { calcGroupPoints, calcPoolPoints, calcBonusPoints, computeClosestWinners } from './tournament';
 
+function computeStreak(
+  userPredictions: { matchNumber: number; predictedWinner: string }[],
+  results: { matchNumber: number; result: string }[],
+): number {
+  const predMap = new Map(userPredictions.map((p) => [p.matchNumber, p.predictedWinner]));
+  const resultMap = new Map(results.map((r) => [r.matchNumber, r.result]));
+  const playedFixtures = ALL_FIXTURES
+    .filter((f) => resultMap.has(f.matchNumber))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  let streak = 0;
+  for (const fixture of playedFixtures) {
+    const pick = predMap.get(fixture.matchNumber);
+    if (!pick || pick !== resultMap.get(fixture.matchNumber)) break;
+    streak++;
+  }
+  return streak;
+}
+
 export async function refreshLeagueLeaderboard(leagueId: string): Promise<number> {
   const [members, fixtureResults, bonusAnswers, allPredictions, allChips, allBonus] = await Promise.all([
     db.leagueMember.findMany({ where: { leagueId }, include: { user: true } }),
@@ -111,6 +129,11 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
       scorePoints -
       penalty;
 
+    const currentStreak = computeStreak(
+      userPredictions.map((p) => ({ matchNumber: p.matchNumber, predictedWinner: p.predictedWinner })),
+      results,
+    );
+
     return {
       userId: member.userId,
       totalPoints,
@@ -123,6 +146,7 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
       bonusPoints,
       scorePoints,
       penalty,
+      currentStreak,
     };
   });
 
@@ -169,6 +193,7 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
           bonusPoints: entry.bonusPoints,
           scorePoints: entry.scorePoints,
           penalty: entry.penalty,
+          currentStreak: entry.currentStreak,
           updatedAt: new Date(),
         },
         create: {
@@ -186,6 +211,7 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
           bonusPoints: entry.bonusPoints,
           scorePoints: entry.scorePoints,
           penalty: entry.penalty,
+          currentStreak: entry.currentStreak,
         },
       })
     )

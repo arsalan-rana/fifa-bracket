@@ -1179,21 +1179,27 @@ export default function FixturesPage({ params }: Props) {
         fixture={fixture}
         isNextMatch={fixture.matchNumber === nextMatchNumber}
         highlightedCommentId={highlightedCommentId}
-        label={
-          fixture.phase === 'group' ? (
+        label={(() => {
+          const t1 = TEAMS[fixture.team1];
+          const t2 = TEAMS[fixture.team2];
+          const isTbd1 = fixture.team1 === 'TBD' || !t1;
+          const isTbd2 = fixture.team2 === 'TBD' || !t2;
+          return (
             <>
-              {TEAMS[fixture.team1]?.flag ?? ''}{' '}
-              <strong>{TEAMS[fixture.team1]?.name ?? fixture.team1}</strong>
+              {isTbd1 ? (
+                <Typography component="span" variant="body2" color="text.disabled">TBD</Typography>
+              ) : (
+                <>{t1.flag} <strong>{t1.name}</strong></>
+              )}
               {' vs '}
-              <strong>{TEAMS[fixture.team2]?.name ?? fixture.team2}</strong>{' '}
-              {TEAMS[fixture.team2]?.flag ?? ''}
+              {isTbd2 ? (
+                <Typography component="span" variant="body2" color="text.disabled">TBD</Typography>
+              ) : (
+                <><strong>{t2.name}</strong> {t2.flag}</>
+              )}
             </>
-          ) : (
-            <Typography component="span" variant="body2" color="text.secondary">
-              TBD vs TBD
-            </Typography>
-          )
-        }
+          );
+        })()}
         isPastDeadline={matchStarted}
         commentsOpen={openComments.has(fixture.matchNumber)}
         picksOpen={openPicks.has(fixture.matchNumber)}

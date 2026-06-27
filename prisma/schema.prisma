@@ -177,10 +177,11 @@ model LeaderboardEntry {
   quarterPoints Int      @default(0)
   semiPoints    Int      @default(0)
   finalPoints   Int      @default(0)
-  bonusPoints   Int      @default(0)
-  scorePoints   Int      @default(0)
-  penalty       Int      @default(0)
-  updatedAt     DateTime @default(now())
+  bonusPoints    Int      @default(0)
+  scorePoints    Int      @default(0)
+  penalty        Int      @default(0)
+  currentStreak  Int      @default(0)
+  updatedAt      DateTime @default(now())
 
   @@unique([leagueId, userId])
 }

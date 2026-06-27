@@ -49,6 +49,7 @@ interface LeaderboardEntry {
   bonusPoints: number;
   scorePoints: number;
   penalty: number;
+  currentStreak: number;
   statusMessage: string | null;
   userId: string;
   user: { name: string | null; email: string; image: string | null };
@@ -392,12 +393,30 @@ export default function LeaderboardPage({ params }: Props) {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Avatar src={entry.user.image ?? undefined} sx={{ width: 30, height: 30, flexShrink: 0 }} />
                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Typography variant="body2" sx={{ fontWeight: isMe ? 700 : 400 }}>
-                                {entry.user.name ?? entry.user.email}
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                                <Typography variant="body2" sx={{ fontWeight: isMe ? 700 : 400 }}>
+                                  {entry.user.name ?? entry.user.email}
+                                </Typography>
                                 {isMe && (
-                                  <Chip label="you" size="small" sx={{ ml: 1, height: 16, fontSize: '0.6rem' }} />
+                                  <Chip label="you" size="small" sx={{ height: 16, fontSize: '0.6rem' }} />
                                 )}
-                              </Typography>
+                                {entry.currentStreak >= 3 && (
+                                  <Chip
+                                    label={`🔥 ${entry.currentStreak}`}
+                                    size="small"
+                                    sx={{
+                                      height: 18,
+                                      fontSize: '0.65rem',
+                                      fontWeight: 700,
+                                      background: entry.currentStreak >= 6
+                                        ? 'linear-gradient(90deg, rgba(239,68,68,0.3), rgba(251,146,60,0.3))'
+                                        : 'rgba(251,146,60,0.2)',
+                                      color: entry.currentStreak >= 6 ? '#ef4444' : '#fb923c',
+                                      border: `1px solid ${entry.currentStreak >= 6 ? 'rgba(239,68,68,0.5)' : 'rgba(251,146,60,0.4)'}`,
+                                    }}
+                                  />
+                                )}
+                              </Box>
                               {/* Status message */}
                               {entry.statusMessage && (
                                 <Typography variant="caption" color="secondary.main" sx={{ lineHeight: 1.3, display: 'block', fontStyle: 'italic' }}>
@@ -522,29 +541,34 @@ export default function LeaderboardPage({ params }: Props) {
                           <Collapse in={isExpanded} unmountOnExit>
                             <Box
                               sx={{
-                                px: 3,
-                                py: 1.5,
+                                px: 2,
+                                py: 1.25,
                                 bgcolor: isMe ? 'rgba(0,61,165,0.07)' : 'rgba(255,255,255,0.02)',
                                 borderBottom: '1px solid',
                                 borderColor: 'divider',
                                 display: 'flex',
                                 flexWrap: 'wrap',
-                                gap: 2,
+                                gap: 1.5,
+                                rowGap: 1,
                               }}
                             >
                               {[
-                                { label: 'Groups', value: entry.groupPoints },
-                                { label: 'Knockouts', value: knockoutPts },
-                                { label: 'Scores', value: entry.scorePoints ?? 0, color: entry.scorePoints > 0 ? 'secondary.main' : undefined },
-                                { label: 'Bonus', value: entry.bonusPoints, color: entry.bonusPoints > 0 ? 'success.main' : undefined },
-                                { label: 'Penalty', value: -entry.penalty, color: entry.penalty > 0 ? 'error.main' : undefined },
-                              ].map(({ label, value, color }) => (
-                                <Box key={label} sx={{ textAlign: 'center', minWidth: 56 }}>
-                                  <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                { label: 'GS', title: 'Group Stage', value: entry.groupPoints },
+                                { label: 'R32', title: 'Round of 32', value: entry.round32Points },
+                                { label: 'R16', title: 'Round of 16', value: entry.round16Points },
+                                { label: 'QF', title: 'Quarter-finals', value: entry.quarterPoints },
+                                { label: 'SF', title: 'Semi-finals', value: entry.semiPoints },
+                                { label: 'F', title: 'Final', value: entry.finalPoints },
+                                { label: 'Score', title: 'Score predictions', value: entry.scorePoints ?? 0, color: entry.scorePoints > 0 ? '#C9A73A' : undefined },
+                                { label: 'Bonus', title: 'Bonus questions', value: entry.bonusPoints, color: entry.bonusPoints > 0 ? '#22c55e' : undefined },
+                                ...(entry.penalty > 0 ? [{ label: 'Penalty', title: 'Late penalty', value: -entry.penalty, color: '#ef4444' as string }] : []),
+                              ].map(({ label, title, value, color }) => (
+                                <Box key={label} sx={{ textAlign: 'center', minWidth: 36 }} title={title}>
+                                  <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: 0.4, lineHeight: 1.2 }}>
                                     {label}
                                   </Typography>
-                                  <Typography variant="body2" sx={{ fontWeight: 700 }} color={color ?? 'text.primary'}>
-                                    {value > 0 && label !== 'Penalty' ? `+${value}` : value}
+                                  <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.8rem', color: color ?? (value === 0 ? 'text.disabled' : 'text.primary') }}>
+                                    {value > 0 ? `+${value}` : value}
                                   </Typography>
                                 </Box>
                               ))}
