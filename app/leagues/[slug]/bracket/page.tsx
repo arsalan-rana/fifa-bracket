@@ -174,17 +174,28 @@ function MatchCard({
                 >
                   {opt.flag} {opt.label}
                 </Button>
-                {isRealTeam && onOpenTeamInfo && (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', my: 0.25 }}>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => { e.stopPropagation(); onOpenTeamInfo(opt.code); }}
-                      sx={{ p: 0.5, opacity: 0.35, '&:hover': { opacity: 0.8 } }}
-                    >
-                      <InfoOutlinedIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
-                  </Box>
-                )}
+                {isRealTeam && onOpenTeamInfo && (() => {
+                  const teamColor = TEAMS[opt.code]?.primaryColor ?? '#6366f1';
+                  return (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 0.25 }}>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => { e.stopPropagation(); onOpenTeamInfo(opt.code); }}
+                        sx={{
+                          p: { xs: 0.75, sm: 0.5 },
+                          bgcolor: `${teamColor}18`,
+                          border: `1px solid ${teamColor}35`,
+                          borderRadius: '50%',
+                          color: teamColor,
+                          '&:hover': { bgcolor: `${teamColor}30`, borderColor: `${teamColor}70` },
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <InfoOutlinedIcon sx={{ fontSize: { xs: 13, sm: 12 } }} />
+                      </IconButton>
+                    </Box>
+                  );
+                })()}
                 {pct > 0 && (
                   <Box sx={{ mt: isRealTeam && onOpenTeamInfo ? 0 : 0.5 }}>
                     <LinearProgress
@@ -911,8 +922,8 @@ export default function BracketPage({ params }: Props) {
           )}
         </Box>
 
-        {/* Chips Panel — shown only when viewing the active picks phase and it has chips */}
-        {viewPhase === currentPhase && phaseConfig.chipsAvailable.length > 0 && (
+        {/* Chips Panel — show for group stage always, for later phases only once their deadline has passed */}
+        {phaseConfig.chipsAvailable.length > 0 && (viewPhase === 'group' || isPhasePastDeadline(viewPhase)) && (
           <ChipsPanel
             phase={viewPhase}
             chips={chips}
