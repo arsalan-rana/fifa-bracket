@@ -691,7 +691,7 @@ export default function BracketPage({ params }: Props) {
     const phaseFixtures = getFixturesByPhase(phase);
     // Only submit picks for matches that haven't started — server hard-rejects started matches
     const unstartedPicks = phaseFixtures
-      .filter((f) => predictions[f.matchNumber] && new Date(f.date) > now)
+      .filter((f) => f.team1 !== 'TBD' && f.team2 !== 'TBD' && predictions[f.matchNumber] && new Date(f.date) > now)
       .map((f) => ({ matchNumber: f.matchNumber, predictedWinner: predictions[f.matchNumber] }));
 
     // After deadline: only send genuinely new picks OR wildcard-covered matches (which can override on-time picks).

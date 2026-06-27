@@ -63,6 +63,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: `Match ${pred.matchNumber} has already started — pick is locked` });
     }
 
+    if (fixture.team1 === 'TBD' || fixture.team2 === 'TBD') {
+      return res.status(400).json({ error: `Match ${pred.matchNumber} teams are not yet determined` });
+    }
+
     const validWinners = [fixture.team1, fixture.team2];
     if (fixture.canDraw) validWinners.push('DRAW');
     if (!validWinners.includes(pred.predictedWinner)) {
