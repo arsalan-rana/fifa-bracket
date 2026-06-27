@@ -267,7 +267,7 @@ function ChipsPanel({ phase, chips, chipMode, onSelectChipMode }: ChipsPanelProp
   }
 
   function getMatchLabel(matchNumber: number): string {
-    const fixture = GROUP_FIXTURES.find((f) => f.matchNumber === matchNumber);
+    const fixture = ALL_FIXTURES.find((f) => f.matchNumber === matchNumber);
     if (!fixture) return `Match ${matchNumber}`;
     const t1 = TEAMS[fixture.team1];
     const t2 = TEAMS[fixture.team2];
@@ -442,6 +442,9 @@ export default function BracketPage({ params }: Props) {
     ALL_FIXTURES.some((f) => f.phase === p.id && f.team1 !== 'TBD')
   );
 
+  // Cancel chip mode when switching phases — prevents group chip bleeding into R32
+  useEffect(() => { setChipMode(null); }, [viewPhase]);
+
   // ESC to cancel chip mode
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -538,6 +541,8 @@ export default function BracketPage({ params }: Props) {
       if (!chipMode || !leagueId || chipSubmitting) return;
       const fixture = ALL_FIXTURES.find((f) => f.matchNumber === matchNumber);
       if (!fixture) return;
+      // Hard guard: chip must be applied to a match in the currently viewed phase
+      if (fixture.phase !== viewPhase) return;
       if (chipMode === 'wildcard') {
         setWildcardFixture(fixture);
         setWildcardNewPick('');
@@ -545,7 +550,7 @@ export default function BracketPage({ params }: Props) {
         setChipConfirmFixture(fixture);
       }
     },
-    [chipMode, leagueId, chipSubmitting],
+    [chipMode, leagueId, chipSubmitting, viewPhase],
   );
 
   const handleApplyWildcard = useCallback(async () => {
