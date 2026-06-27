@@ -1082,7 +1082,7 @@ export default function FixturesPage({ params }: Props) {
     if (todayEl) { scrollTo(todayEl); return; }
 
     // No matches today — scroll to the next upcoming match day
-    const next = GROUP_FIXTURES
+    const next = ALL_FIXTURES
       .filter((f) => new Date(f.date) > new Date())
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
     if (next) {

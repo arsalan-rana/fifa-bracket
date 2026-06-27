@@ -347,7 +347,9 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
         )}
 
         <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
-          TBD vs TBD
+          {fixture.team1 === 'TBD' ? 'TBD' : `${TEAMS[fixture.team1]?.flag ?? ''} ${TEAMS[fixture.team1]?.name ?? fixture.team1}`}
+          {' vs '}
+          {fixture.team2 === 'TBD' ? 'TBD' : `${TEAMS[fixture.team2]?.flag ?? ''} ${TEAMS[fixture.team2]?.name ?? fixture.team2}`}
         </Typography>
 
         {/* Result badge */}
