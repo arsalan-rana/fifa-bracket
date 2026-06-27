@@ -258,16 +258,22 @@ export const GROUP_FIXTURES: Fixture[] = [
 // Placeholders for bracket display purposes.
 export const KNOCKOUT_FIXTURES: Fixture[] = [
   // Round of 32 (16 matches)
-  ...Array.from({ length: 16 }, (_, i) => ({
-    matchNumber: 73 + i,
-    phase: 'round32' as Phase,
-    team1: 'TBD',
-    team2: 'TBD',
-    venue: 'TBD',
-    city: 'TBD',
-    date: `2026-06-${28 + Math.floor(i / 4)}T22:00:00Z`,
-    canDraw: false,
-  })),
+  { matchNumber: 73, phase: 'round32' as Phase, team1: 'RSA', team2: 'CAN', venue: 'SoFi Stadium',           city: 'Los Angeles',  date: '2026-06-28T19:00:00Z', canDraw: false },
+  { matchNumber: 74, phase: 'round32' as Phase, team1: 'GER', team2: 'PAR', venue: 'Gillette Stadium',       city: 'Boston',       date: '2026-06-29T20:30:00Z', canDraw: false },
+  { matchNumber: 75, phase: 'round32' as Phase, team1: 'NED', team2: 'MAR', venue: 'Estadio BBVA',           city: 'Guadalajara',  date: '2026-06-30T01:00:00Z', canDraw: false },
+  { matchNumber: 76, phase: 'round32' as Phase, team1: 'BRA', team2: 'JPN', venue: 'NRG Stadium',            city: 'Houston',      date: '2026-06-29T17:00:00Z', canDraw: false },
+  { matchNumber: 77, phase: 'round32' as Phase, team1: 'FRA', team2: 'SWE', venue: 'MetLife Stadium',        city: 'New York/NJ',  date: '2026-06-30T21:00:00Z', canDraw: false },
+  { matchNumber: 78, phase: 'round32' as Phase, team1: 'CIV', team2: 'NOR', venue: 'AT&T Stadium',           city: 'Dallas',       date: '2026-06-30T17:00:00Z', canDraw: false },
+  { matchNumber: 79, phase: 'round32' as Phase, team1: 'MEX', team2: 'TBD', venue: 'Estadio Azteca',         city: 'Mexico City',  date: '2026-07-01T01:00:00Z', canDraw: false },
+  { matchNumber: 80, phase: 'round32' as Phase, team1: 'TBD', team2: 'TBD', venue: 'Mercedes-Benz Stadium',  city: 'Atlanta',      date: '2026-07-01T16:00:00Z', canDraw: false },
+  { matchNumber: 81, phase: 'round32' as Phase, team1: 'USA', team2: 'BIH', venue: "Levi's Stadium",         city: 'San Francisco',date: '2026-07-02T00:00:00Z', canDraw: false },
+  { matchNumber: 82, phase: 'round32' as Phase, team1: 'BEL', team2: 'TBD', venue: 'Lumen Field',            city: 'Seattle',      date: '2026-07-01T20:00:00Z', canDraw: false },
+  { matchNumber: 83, phase: 'round32' as Phase, team1: 'TBD', team2: 'TBD', venue: 'BMO Field',              city: 'Toronto',      date: '2026-07-02T23:00:00Z', canDraw: false },
+  { matchNumber: 84, phase: 'round32' as Phase, team1: 'ESP', team2: 'TBD', venue: 'SoFi Stadium',           city: 'Los Angeles',  date: '2026-07-02T19:00:00Z', canDraw: false },
+  { matchNumber: 85, phase: 'round32' as Phase, team1: 'SUI', team2: 'TBD', venue: 'BC Place',               city: 'Vancouver',    date: '2026-07-03T03:00:00Z', canDraw: false },
+  { matchNumber: 86, phase: 'round32' as Phase, team1: 'ARG', team2: 'CPV', venue: 'Hard Rock Stadium',      city: 'Miami',        date: '2026-07-03T22:00:00Z', canDraw: false },
+  { matchNumber: 87, phase: 'round32' as Phase, team1: 'TBD', team2: 'TBD', venue: 'Arrowhead Stadium',      city: 'Kansas City',  date: '2026-07-04T01:30:00Z', canDraw: false },
+  { matchNumber: 88, phase: 'round32' as Phase, team1: 'AUS', team2: 'EGY', venue: 'AT&T Stadium',           city: 'Dallas',       date: '2026-07-03T18:00:00Z', canDraw: false },
 
   // Round of 16 (8 matches)
   ...Array.from({ length: 8 }, (_, i) => ({
