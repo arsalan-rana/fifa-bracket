@@ -1358,7 +1358,8 @@ export default function FixturesPage({ params }: Props) {
         </Typography>
 
         {(['round32', 'round16', 'quarter', 'semi', 'final'] as Phase[]).map((phase) => {
-          const fixtures = KNOCKOUT_FIXTURES.filter((f) => f.phase === phase);
+          const fixtures = KNOCKOUT_FIXTURES.filter((f) => f.phase === phase)
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
           const phaseConfig = PHASES.find((p) => p.id === phase)!;
           const phaseDeadlinePassed = isPhasePastDeadline(phase);
           const phasePicksCount = fixtures.reduce(
