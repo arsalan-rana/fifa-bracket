@@ -432,7 +432,26 @@ export default function BracketPage({ params }: Props) {
   const [wildcardNewPick, setWildcardNewPick] = useState<string>('');
 
   const currentPhase = getCurrentPhase();
-  const [viewPhase, setViewPhase] = useState<Phase>(currentPhase);
+
+  // Default to the previous phase if its last match hasn't had time to complete yet
+  // (3h buffer after last kickoff covers 90min + ET + pens + result entry)
+  function getDefaultViewPhase(): Phase {
+    const phases = PHASES.map((p) => p.id as Phase);
+    const idx = phases.indexOf(currentPhase);
+    if (idx > 0) {
+      const prev = phases[idx - 1];
+      const prevFixtures = ALL_FIXTURES.filter(
+        (f) => f.phase === prev && f.team1 !== 'TBD' && f.team2 !== 'TBD'
+      );
+      if (prevFixtures.length > 0) {
+        const lastKickoff = Math.max(...prevFixtures.map((f) => new Date(f.date).getTime()));
+        if (lastKickoff + 3 * 3600_000 > Date.now()) return prev;
+      }
+    }
+    return currentPhase;
+  }
+
+  const [viewPhase, setViewPhase] = useState<Phase>(getDefaultViewPhase());
 
   const phaseConfig = PHASES.find((p) => p.id === viewPhase)!;
   const isPastDeadline = isPhasePastDeadline(viewPhase);
