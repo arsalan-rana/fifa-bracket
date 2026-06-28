@@ -1050,13 +1050,12 @@ export default function FixturesPage({ params }: Props) {
     }, 600);
   }, []);
 
-  // Auto-scroll to today's matches (or next upcoming day) once ALL data has loaded.
-  // Using double rAF so React has fully committed the final render to the DOM before
-  // we measure positions — avoids landing in the wrong spot due to layout shifts from
-  // picks/results/comments inflating the page after an early scroll.
+  // Auto-scroll to today's matches (or next upcoming match) once ALL data has loaded.
+  // Uses double rAF so React has fully committed the final render to the DOM before
+  // measuring positions — avoids landing in the wrong spot due to layout shifts.
   // Skipped when a ?match deep-link is active (notification tap takes priority).
   useEffect(() => {
-    if (!dataReady || groupBy !== 'date') return;
+    if (!dataReady) return;
     if (new URLSearchParams(window.location.search).get('match')) return;
 
     function labelFor(date: Date) {
@@ -1067,7 +1066,6 @@ export default function FixturesPage({ params }: Props) {
     function idFor(label: string) {
       return `fixtures-day-${label.replace(/[^a-zA-Z0-9]/g, '-')}`;
     }
-
     function scrollTo(el: HTMLElement) {
       // Double rAF: first frame lets React commit, second lets the browser paint & measure layout
       requestAnimationFrame(() => {
@@ -1077,18 +1075,28 @@ export default function FixturesPage({ params }: Props) {
       });
     }
 
-    const todayLabel = labelFor(new Date());
-    const todayEl = document.getElementById(idFor(todayLabel));
-    if (todayEl) { scrollTo(todayEl); return; }
-
-    // No matches today — scroll to the next upcoming match day
     const next = ALL_FIXTURES
       .filter((f) => new Date(f.date) > new Date())
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
-    if (next) {
-      const nextEl = document.getElementById(idFor(labelFor(new Date(next.date))));
-      if (nextEl) scrollTo(nextEl);
-    }
+
+    if (!next) return;
+
+    const isGroupMatch = GROUP_FIXTURES.some((f) => f.matchNumber === next.matchNumber);
+
+    // In accordion (by-group) view, group day cards aren't rendered — skip group scroll
+    if (isGroupMatch && groupBy !== 'date') return;
+
+    // Try today's day card first (exists in group stage date view)
+    const todayEl = document.getElementById(idFor(labelFor(new Date())));
+    if (todayEl) { scrollTo(todayEl); return; }
+
+    // Try the next match's day card (group stage date view, future day)
+    const nextDayEl = document.getElementById(idFor(labelFor(new Date(next.date))));
+    if (nextDayEl) { scrollTo(nextDayEl); return; }
+
+    // Fallback: knockout phases don't have day cards — scroll directly to the match row
+    const matchRowEl = document.getElementById(`match-row-${next.matchNumber}`);
+    if (matchRowEl) scrollTo(matchRowEl);
   }, [dataReady, groupBy]);
 
   const nextMatchNumber = ALL_FIXTURES
@@ -1173,6 +1181,9 @@ export default function FixturesPage({ params }: Props) {
     const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     const matchDayET = new Date(fixture.date).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     const matchStarted = matchDayET <= todayET;
+    // Picks only reveal once the phase deadline has passed AND the match day has arrived
+    // (mirrors group-stage behaviour: deadline locks picks in, match day makes them visible)
+    const picksVisible = isPhasePastDeadline(fixture.phase) && matchStarted;
     return (
       <MatchRow
         key={fixture.matchNumber}
@@ -1200,7 +1211,7 @@ export default function FixturesPage({ params }: Props) {
             </>
           );
         })()}
-        isPastDeadline={matchStarted}
+        isPastDeadline={picksVisible}
         commentsOpen={openComments.has(fixture.matchNumber)}
         picksOpen={openPicks.has(fixture.matchNumber)}
         comments={commentsFor(fixture.matchNumber)}
