@@ -266,8 +266,8 @@ interface KnockoutResultFormProps {
 
 function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormProps) {
   const [open, setOpen] = useState(false);
-  const [team1Code, setTeam1Code] = useState<string>(existing?.result !== 'DRAW' ? (existing ? fixture.team1 !== 'TBD' ? fixture.team1 : '' : '') : '');
-  const [team2Code, setTeam2Code] = useState<string>(existing?.result !== 'DRAW' ? (existing ? fixture.team2 !== 'TBD' ? fixture.team2 : '' : '') : '');
+  const [team1Code, setTeam1Code] = useState<string>(fixture.team1 !== 'TBD' ? fixture.team1 : '');
+  const [team2Code, setTeam2Code] = useState<string>(fixture.team2 !== 'TBD' ? fixture.team2 : '');
   const [goals1, setGoals1] = useState<string>(existing?.goals1?.toString() ?? '');
   const [goals2, setGoals2] = useState<string>(existing?.goals2?.toString() ?? '');
   const [penWinner, setPenWinner] = useState<string>('');
