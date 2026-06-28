@@ -1020,7 +1020,7 @@ export default function BracketPage({ params }: Props) {
                         <MatchCard key={fixture.matchNumber} fixture={fixture}
                           selected={predictions[fixture.matchNumber]}
                           onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
-                          disabled={matchHasStarted(fixture)}
+                          disabled={matchHasStarted(fixture) || (isPastDeadline && !allowLateSubmission && !wildcardMatchNums.has(fixture.matchNumber))}
                           chipActive={getChipForMatch(fixture.matchNumber)}
                           chipMode={chipMode} onApplyChip={handleApplyChip}
                           pickCounts={leaguePicks[fixture.matchNumber]}
@@ -1040,7 +1040,7 @@ export default function BracketPage({ params }: Props) {
                     <MatchCard key={fixture.matchNumber} fixture={fixture}
                       selected={predictions[fixture.matchNumber]}
                       onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
-                      disabled={matchHasStarted(fixture)}
+                      disabled={matchHasStarted(fixture) || (isPastDeadline && !allowLateSubmission && !wildcardMatchNums.has(fixture.matchNumber))}
                       chipActive={getChipForMatch(fixture.matchNumber)}
                       chipMode={chipMode} onApplyChip={handleApplyChip}
                       pickCounts={leaguePicks[fixture.matchNumber]}
@@ -1075,7 +1075,7 @@ export default function BracketPage({ params }: Props) {
                       <MatchCard key={fixture.matchNumber} fixture={fixture}
                         selected={predictions[fixture.matchNumber]}
                         onSelect={(winner) => setPrediction(fixture.matchNumber, winner)}
-                        disabled={isTbd || matchHasStarted(fixture)}
+                        disabled={isTbd || matchHasStarted(fixture) || (isPastDeadline && !allowLateSubmission && !wildcardMatchNums.has(fixture.matchNumber))}
                         chipActive={getChipForMatch(fixture.matchNumber)}
                         chipMode={isTbd ? null : chipMode}
                         onApplyChip={handleApplyChip}
