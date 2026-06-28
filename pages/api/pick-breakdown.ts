@@ -66,8 +66,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const pred = predMap.get(fixture.matchNumber);
     const result = resultMap.get(fixture.matchNumber) ?? null;
     const correct = result !== null && pred ? pred.predictedWinner === result : null;
-    const chip = userChips.find(c => c.matchNumber === fixture.matchNumber && c.phase === fixture.phase);
-    const chipType = chip?.chipType ?? null;
+    const matchChips = userChips.filter(c => c.matchNumber === fixture.matchNumber && c.phase === fixture.phase);
+    const scoringChip = matchChips.find(c => c.chipType === 'doubleUp' || c.chipType === 'banker') ?? matchChips[0];
+    const chipType = scoringChip?.chipType ?? null;
     const multiplier = chipType === 'banker' ? 3 : chipType === 'doubleUp' ? 2 : 1;
     const baseShare = poolByMatch.get(fixture.matchNumber) ?? 0;
     const pickPoints = correct ? Math.floor(baseShare * multiplier) : 0;

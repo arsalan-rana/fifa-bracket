@@ -10,7 +10,7 @@ function computeStreak(
   const resultMap = new Map(results.map((r) => [r.matchNumber, r.result]));
   const playedFixtures = ALL_FIXTURES
     .filter((f) => resultMap.has(f.matchNumber))
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.matchNumber - a.matchNumber);
   let streak = 0;
   for (const fixture of playedFixtures) {
     const pick = predMap.get(fixture.matchNumber);

@@ -401,20 +401,41 @@ export default function LeaderboardPage({ params }: Props) {
                                   <Chip label="you" size="small" sx={{ height: 16, fontSize: '0.6rem' }} />
                                 )}
                                 {entry.currentStreak >= 3 && (
-                                  <Chip
-                                    label={`🔥 ${entry.currentStreak}`}
-                                    size="small"
-                                    sx={{
-                                      height: 18,
-                                      fontSize: '0.65rem',
-                                      fontWeight: 700,
-                                      background: entry.currentStreak >= 6
-                                        ? 'linear-gradient(90deg, rgba(239,68,68,0.3), rgba(251,146,60,0.3))'
-                                        : 'rgba(251,146,60,0.2)',
-                                      color: entry.currentStreak >= 6 ? '#ef4444' : '#fb923c',
-                                      border: `1px solid ${entry.currentStreak >= 6 ? 'rgba(239,68,68,0.5)' : 'rgba(251,146,60,0.4)'}`,
-                                    }}
-                                  />
+                                  <Tooltip
+                                    title={`🔥 Hot streak — ${entry.currentStreak} correct ${entry.currentStreak === 1 ? 'pick' : 'picks'} in a row`}
+                                    arrow
+                                    enterTouchDelay={0}
+                                    leaveTouchDelay={3000}
+                                  >
+                                    <Box
+                                      component="span"
+                                      onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                      sx={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 0.35,
+                                        px: 0.75,
+                                        py: 0.3,
+                                        borderRadius: '999px',
+                                        fontSize: '0.62rem',
+                                        fontWeight: 800,
+                                        lineHeight: 1,
+                                        letterSpacing: 0.2,
+                                        background: entry.currentStreak >= 6
+                                          ? 'linear-gradient(135deg, #dc2626 0%, #ea580c 100%)'
+                                          : 'linear-gradient(135deg, #f97316 0%, #fbbf24 100%)',
+                                        color: '#fff',
+                                        boxShadow: entry.currentStreak >= 6
+                                          ? '0 0 10px rgba(220,38,38,0.45), inset 0 1px 0 rgba(255,255,255,0.15)'
+                                          : '0 1px 4px rgba(249,115,22,0.35), inset 0 1px 0 rgba(255,255,255,0.15)',
+                                        cursor: 'default',
+                                        userSelect: 'none',
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      🔥 {entry.currentStreak}
+                                    </Box>
+                                  </Tooltip>
                                 )}
                               </Box>
                               {/* Status message */}
