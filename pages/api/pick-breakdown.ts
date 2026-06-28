@@ -69,6 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const matchChips = userChips.filter(c => c.matchNumber === fixture.matchNumber && c.phase === fixture.phase);
     const scoringChip = matchChips.find(c => c.chipType === 'doubleUp' || c.chipType === 'banker') ?? matchChips[0];
     const chipType = scoringChip?.chipType ?? null;
+    const hasWildcard = matchChips.some(c => c.chipType === 'wildcard');
     const multiplier = chipType === 'banker' ? 3 : chipType === 'doubleUp' ? 2 : 1;
     const baseShare = poolByMatch.get(fixture.matchNumber) ?? 0;
     const pickPoints = correct ? Math.floor(baseShare * multiplier) : 0;
@@ -104,6 +105,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       submittedAt: pred?.submittedAt?.toISOString() ?? null,
       isLate: pred?.isLate ?? false,
       chipType,
+      hasWildcard,
       actualResult: result,
       actualGoals1: actualScore?.goals1 ?? null,
       actualGoals2: actualScore?.goals2 ?? null,
