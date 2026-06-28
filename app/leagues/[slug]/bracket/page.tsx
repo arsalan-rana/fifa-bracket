@@ -927,8 +927,8 @@ export default function BracketPage({ params }: Props) {
           )}
         </Box>
 
-        {/* Chips Panel — hide for group (done), show for knockout phases before deadline or if chips already used */}
-        {phaseConfig.chipsAvailable.length > 0 && viewPhase !== 'group' && (!isPhasePastDeadline(viewPhase) || Object.values(chips).some(c => c.phase === viewPhase)) && (
+        {/* Chips Panel — hide for group (done), show for all knockout phases always (wildcard is applied after deadline) */}
+        {phaseConfig.chipsAvailable.length > 0 && viewPhase !== 'group' && (
           <ChipsPanel
             phase={viewPhase}
             chips={chips}
