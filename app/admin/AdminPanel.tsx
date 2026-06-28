@@ -270,16 +270,20 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
   const [team2Code, setTeam2Code] = useState<string>(existing?.result !== 'DRAW' ? (existing ? fixture.team2 !== 'TBD' ? fixture.team2 : '' : '') : '');
   const [goals1, setGoals1] = useState<string>(existing?.goals1?.toString() ?? '');
   const [goals2, setGoals2] = useState<string>(existing?.goals2?.toString() ?? '');
+  const [penWinner, setPenWinner] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
   const g1 = parseInt(goals1, 10);
   const g2 = parseInt(goals2, 10);
-  const bothValid = !isNaN(g1) && !isNaN(g2) && g1 >= 0 && g2 >= 0 && team1Code.trim() && team2Code.trim() && g1 !== g2;
-  const derivedResult = (!isNaN(g1) && !isNaN(g2) && team1Code && team2Code)
-    ? (g1 > g2 ? team1Code.toUpperCase() : g2 > g1 ? team2Code.toUpperCase() : null)
+  const scoresValid = !isNaN(g1) && !isNaN(g2) && g1 >= 0 && g2 >= 0;
+  const isTied = scoresValid && g1 === g2;
+  // For tied ET scores (pen shootout), require explicit pen winner selection
+  const derivedResult = scoresValid && team1Code && team2Code
+    ? (g1 > g2 ? team1Code.toUpperCase() : g2 > g1 ? team2Code.toUpperCase() : penWinner || null)
     : null;
+  const bothValid = scoresValid && !!team1Code.trim() && !!team2Code.trim() && !!derivedResult;
 
   async function handleSave() {
     if (!bothValid || !derivedResult) return;
@@ -380,7 +384,11 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
       </Box>
 
       <Collapse in={open}>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, px: 1, pb: 1.5 }}>
+        <Box sx={{ px: 1, pb: 1.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontStyle: 'italic' }}>
+            Enter score after extra time (90 + 30 min). For pen shootouts, enter the tied ET score then select the pen winner.
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
           <TextField
             size="small"
             label="Team 1 code"
@@ -393,21 +401,21 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
           <TextField
             type="number"
             size="small"
-            label="Goals"
+            label="Goals (ET)"
             value={goals1}
-            onChange={(e) => setGoals1(e.target.value)}
+            onChange={(e) => { setGoals1(e.target.value); setPenWinner(''); }}
             slotProps={{ htmlInput: { min: 0, max: 20 } }}
-            sx={{ width: 80 }}
+            sx={{ width: 90 }}
           />
           <Typography variant="body2" color="text.secondary">vs</Typography>
           <TextField
             type="number"
             size="small"
-            label="Goals"
+            label="Goals (ET)"
             value={goals2}
-            onChange={(e) => setGoals2(e.target.value)}
+            onChange={(e) => { setGoals2(e.target.value); setPenWinner(''); }}
             slotProps={{ htmlInput: { min: 0, max: 20 } }}
-            sx={{ width: 80 }}
+            sx={{ width: 90 }}
           />
           <TextField
             size="small"
@@ -419,16 +427,35 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
             slotProps={{ htmlInput: { maxLength: 5 } }}
           />
 
+          {/* Pen winner selector — only shown when ET scores are tied */}
+          {isTied && team1Code && team2Code && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', mt: 0.5 }}>
+              <Typography variant="caption" color="warning.main" sx={{ fontWeight: 600 }}>
+                🥅 Tied after ET — who won on pens?
+              </Typography>
+              <ToggleButtonGroup
+                value={penWinner}
+                exclusive
+                onChange={(_, v) => { if (v) setPenWinner(v); }}
+                size="small"
+              >
+                <ToggleButton value={team1Code.toUpperCase()} sx={{ px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
+                  {TEAMS[team1Code.toUpperCase()]?.flag ?? ''} {team1Code.toUpperCase()}
+                </ToggleButton>
+                <ToggleButton value={team2Code.toUpperCase()} sx={{ px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
+                  {TEAMS[team2Code.toUpperCase()]?.flag ?? ''} {team2Code.toUpperCase()}
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+          )}
+
           {derivedResult && (
             <Chip
-              label={`${TEAMS[derivedResult]?.flag ?? ''} ${derivedResult} wins`}
+              label={`${TEAMS[derivedResult]?.flag ?? ''} ${derivedResult} wins${isTied ? ' 🥅 (pens)' : ''}`}
               size="small"
               color="success"
               sx={{ fontWeight: 700 }}
             />
-          )}
-          {!isNaN(g1) && !isNaN(g2) && g1 === g2 && g1 >= 0 && team1Code && team2Code && (
-            <Chip label="No draws in knockouts" size="small" color="warning" />
           )}
 
           <Button
@@ -447,6 +474,7 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
           {success && (
             <Typography variant="caption" color="success.main">Saved!</Typography>
           )}
+          </Box>
         </Box>
       </Collapse>
     </Box>
