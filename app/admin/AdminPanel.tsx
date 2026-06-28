@@ -265,12 +265,15 @@ interface KnockoutResultFormProps {
 }
 
 function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormProps) {
+  const t1 = TEAMS[fixture.team1];
+  const t2 = TEAMS[fixture.team2];
+
   const [open, setOpen] = useState(false);
-  const [team1Code, setTeam1Code] = useState<string>(fixture.team1 !== 'TBD' ? fixture.team1 : '');
-  const [team2Code, setTeam2Code] = useState<string>(fixture.team2 !== 'TBD' ? fixture.team2 : '');
   const [goals1, setGoals1] = useState<string>(existing?.goals1?.toString() ?? '');
   const [goals2, setGoals2] = useState<string>(existing?.goals2?.toString() ?? '');
-  const [penWinner, setPenWinner] = useState<string>('');
+  const [penWinner, setPenWinner] = useState<string>(
+    existing && existing.goals1 === existing.goals2 ? existing.result : ''
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -279,11 +282,10 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
   const g2 = parseInt(goals2, 10);
   const scoresValid = !isNaN(g1) && !isNaN(g2) && g1 >= 0 && g2 >= 0;
   const isTied = scoresValid && g1 === g2;
-  // For tied ET scores (pen shootout), require explicit pen winner selection
-  const derivedResult = scoresValid && team1Code && team2Code
-    ? (g1 > g2 ? team1Code.toUpperCase() : g2 > g1 ? team2Code.toUpperCase() : penWinner || null)
+  const derivedResult = scoresValid
+    ? (g1 > g2 ? fixture.team1 : g2 > g1 ? fixture.team2 : penWinner || null)
     : null;
-  const bothValid = scoresValid && !!team1Code.trim() && !!team2Code.trim() && !!derivedResult;
+  const bothValid = scoresValid && !!derivedResult;
 
   async function handleSave() {
     if (!bothValid || !derivedResult) return;
@@ -293,12 +295,7 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
       const res = await fetch('/api/update-fixture', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          matchNumber: fixture.matchNumber,
-          result: derivedResult,
-          goals1: g1,
-          goals2: g2,
-        }),
+        body: JSON.stringify({ matchNumber: fixture.matchNumber, result: derivedResult, goals1: g1, goals2: g2 }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Save failed');
@@ -328,20 +325,14 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
           borderColor: existing ? 'rgba(34,197,94,0.35)' : 'divider',
           bgcolor: existing ? 'rgba(34,197,94,0.05)' : 'transparent',
           mb: 0.5,
-          flexWrap: 'wrap',
         }}
       >
-        {/* Match # */}
         <Typography variant="caption" color="text.secondary" sx={{ minWidth: 32 }}>
           #{fixture.matchNumber}
         </Typography>
-
-        {/* Date */}
         <Typography variant="caption" color="text.secondary" sx={{ minWidth: 58 }}>
           {new Date(fixture.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
         </Typography>
-
-        {/* Phase chip */}
         {phaseConfig && (
           <Chip
             label={`${phaseConfig.icon} ${PHASE_LABELS[fixture.phase]}`}
@@ -349,28 +340,22 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
             sx={{ fontSize: '0.65rem', height: 18, background: `${phaseConfig.color}22`, color: phaseConfig.color }}
           />
         )}
-
-        <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
-          {fixture.team1 === 'TBD' ? 'TBD' : `${TEAMS[fixture.team1]?.flag ?? ''} ${TEAMS[fixture.team1]?.name ?? fixture.team1}`}
+        <Typography variant="body2" sx={{ flex: 1 }}>
+          {t1?.flag ?? ''} <strong>{t1?.name ?? fixture.team1}</strong>
           {' vs '}
-          {fixture.team2 === 'TBD' ? 'TBD' : `${TEAMS[fixture.team2]?.flag ?? ''} ${TEAMS[fixture.team2]?.name ?? fixture.team2}`}
+          <strong>{t2?.name ?? fixture.team2}</strong> {t2?.flag ?? ''}
         </Typography>
-
-        {/* Result badge */}
+        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, minWidth: 80 }}>
+          {fixture.city}
+        </Typography>
         {existing && (
           <Chip
             icon={<CheckCircleIcon sx={{ fontSize: '0.85rem !important' }} />}
-            label={`${existing.result} ${existing.goals1 ?? '?'}–${existing.goals2 ?? '?'}`}
+            label={`${TEAMS[existing.result]?.flag ?? ''} ${existing.result} ${existing.goals1 ?? '?'}–${existing.goals2 ?? '?'}${existing.goals1 === existing.goals2 ? ' (P)' : ''}`}
             size="small"
-            sx={{
-              background: 'rgba(34,197,94,0.15)',
-              color: '#22c55e',
-              fontWeight: 700,
-              fontSize: '0.7rem',
-            }}
+            sx={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 700, fontSize: '0.7rem' }}
           />
         )}
-
         <Button
           size="small"
           variant={open ? 'contained' : 'outlined'}
@@ -384,78 +369,66 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
       </Box>
 
       <Collapse in={open}>
-        <Box sx={{ px: 1, pb: 1.5 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontStyle: 'italic' }}>
-            Enter score after extra time (90 + 30 min). For pen shootouts, enter the tied ET score then select the pen winner.
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, px: 1, pb: 1.5 }}>
+          {/* Team 1 — static label, same as group stage */}
+          <Typography variant="body2" sx={{ minWidth: 32 }}>
+            {t1?.flag ?? ''} {t1?.code ?? fixture.team1}
           </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
-          <TextField
-            size="small"
-            label="Team 1 code"
-            placeholder="e.g. ARG"
-            value={team1Code}
-            onChange={(e) => setTeam1Code(e.target.value.toUpperCase())}
-            sx={{ width: 120 }}
-            slotProps={{ htmlInput: { maxLength: 5 } }}
-          />
           <TextField
             type="number"
             size="small"
-            label="Goals (ET)"
+            label="Goals"
             value={goals1}
             onChange={(e) => { setGoals1(e.target.value); setPenWinner(''); }}
             slotProps={{ htmlInput: { min: 0, max: 20 } }}
-            sx={{ width: 90 }}
+            sx={{ width: 80 }}
           />
           <Typography variant="body2" color="text.secondary">vs</Typography>
           <TextField
             type="number"
             size="small"
-            label="Goals (ET)"
+            label="Goals"
             value={goals2}
             onChange={(e) => { setGoals2(e.target.value); setPenWinner(''); }}
             slotProps={{ htmlInput: { min: 0, max: 20 } }}
-            sx={{ width: 90 }}
+            sx={{ width: 80 }}
           />
-          <TextField
-            size="small"
-            label="Team 2 code"
-            placeholder="e.g. FRA"
-            value={team2Code}
-            onChange={(e) => setTeam2Code(e.target.value.toUpperCase())}
-            sx={{ width: 120 }}
-            slotProps={{ htmlInput: { maxLength: 5 } }}
-          />
+          {/* Team 2 — static label */}
+          <Typography variant="body2">
+            {t2?.flag ?? ''} {t2?.code ?? fixture.team2}
+          </Typography>
 
-          {/* Pen winner selector — only shown when ET scores are tied */}
-          {isTied && team1Code && team2Code && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', mt: 0.5 }}>
-              <Typography variant="caption" color="warning.main" sx={{ fontWeight: 600 }}>
-                🥅 Tied after ET — who won on pens?
-              </Typography>
-              <ToggleButtonGroup
-                value={penWinner}
-                exclusive
-                onChange={(_, v) => { if (v) setPenWinner(v); }}
-                size="small"
-              >
-                <ToggleButton value={team1Code.toUpperCase()} sx={{ px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
-                  {TEAMS[team1Code.toUpperCase()]?.flag ?? ''} {team1Code.toUpperCase()}
-                </ToggleButton>
-                <ToggleButton value={team2Code.toUpperCase()} sx={{ px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
-                  {TEAMS[team2Code.toUpperCase()]?.flag ?? ''} {team2Code.toUpperCase()}
-                </ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
+          {/* Pen winner toggle — appears only when ET score is tied */}
+          {isTied && (
+            <ToggleButtonGroup
+              value={penWinner}
+              exclusive
+              onChange={(_, v) => { if (v) setPenWinner(v); }}
+              size="small"
+            >
+              <ToggleButton value={fixture.team1} sx={{ px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
+                {t1?.flag ?? ''} {t1?.code ?? fixture.team1} 🥅
+              </ToggleButton>
+              <ToggleButton value={fixture.team2} sx={{ px: 1.5, fontSize: '0.75rem', textTransform: 'none' }}>
+                {t2?.flag ?? ''} {t2?.code ?? fixture.team2} 🥅
+              </ToggleButton>
+            </ToggleButtonGroup>
           )}
 
           {derivedResult && (
             <Chip
-              label={`${TEAMS[derivedResult]?.flag ?? ''} ${derivedResult} wins${isTied ? ' 🥅 (pens)' : ''}`}
+              label={isTied
+                ? `${TEAMS[derivedResult]?.flag ?? ''} ${TEAMS[derivedResult]?.code ?? derivedResult} wins (pens)`
+                : `${TEAMS[derivedResult]?.flag ?? ''} ${TEAMS[derivedResult]?.code ?? derivedResult} wins`}
               size="small"
               color="success"
               sx={{ fontWeight: 700 }}
             />
+          )}
+          {isTied && !penWinner && (
+            <Typography variant="caption" color="warning.main" sx={{ fontWeight: 600 }}>
+              ← select pen winner
+            </Typography>
           )}
 
           <Button
@@ -468,13 +441,8 @@ function KnockoutResultForm({ fixture, existing, onSaved }: KnockoutResultFormPr
             {saving ? <CircularProgress size={16} /> : 'Save'}
           </Button>
 
-          {error && (
-            <Typography variant="caption" color="error.main">{error}</Typography>
-          )}
-          {success && (
-            <Typography variant="caption" color="success.main">Saved!</Typography>
-          )}
-          </Box>
+          {error && <Typography variant="caption" color="error.main">{error}</Typography>}
+          {success && <Typography variant="caption" color="success.main">Saved!</Typography>}
         </Box>
       </Collapse>
     </Box>
