@@ -260,7 +260,14 @@ function PicksSection({ fixture, picksForMatch, scoresForMatch, matchResult }: {
                 {pickers.length > 0 && (
                   <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                     {pickers.map((p) => (
-                      <Tooltip key={p.email} title={p.name} placement="top" arrow>
+                      <Tooltip
+                        key={p.email}
+                        title={p.name}
+                        placement="top"
+                        arrow
+                        enterTouchDelay={0}
+                        leaveTouchDelay={2500}
+                      >
                         <Avatar
                           src={p.image ?? undefined}
                           sx={{
@@ -268,6 +275,7 @@ function PicksSection({ fixture, picksForMatch, scoresForMatch, matchResult }: {
                             height: 26,
                             fontSize: '0.65rem',
                             border: `2px solid ${barColor}44`,
+                            cursor: 'pointer',
                           }}
                         >
                           {!p.image && (p.name[0]?.toUpperCase() ?? '?')}
