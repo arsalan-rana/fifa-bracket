@@ -114,7 +114,8 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
   const currentPhase = getCurrentPhase();
   const phaseConfig = PHASES.find((p) => p.id === currentPhase);
   const deadline = phaseConfig ? new Date(phaseConfig.deadline) : null;
-  const daysLeft = deadline ? Math.ceil((deadline.getTime() - Date.now()) / 86400000) : 0;
+  const msLeft = deadline ? deadline.getTime() - Date.now() : -1;
+  const hoursLeft = msLeft / 3600000;
 
   function copyInviteCode() {
     navigator.clipboard.writeText(league.inviteCode);
@@ -382,16 +383,18 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
         )}
 
         {/* Phase deadline alert */}
-        {phaseConfig && daysLeft >= 0 && (
+        {phaseConfig && msLeft > 0 && (
           <Alert
-            severity={daysLeft <= 1 ? 'error' : 'info'}
+            severity={hoursLeft <= 24 ? 'error' : 'info'}
             sx={{ mb: 3, borderRadius: 2 }}
             icon={<span>{phaseConfig.icon}</span>}
           >
             <strong>{phaseConfig.name} deadline:</strong>{' '}
-            {daysLeft === 0
-              ? 'Today!'
-              : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`}
+            {hoursLeft < 1
+              ? `${Math.max(1, Math.round(msLeft / 60000))} minute${Math.round(msLeft / 60000) !== 1 ? 's' : ''} left`
+              : hoursLeft < 24
+              ? `${Math.round(hoursLeft)} hour${Math.round(hoursLeft) !== 1 ? 's' : ''} left`
+              : `${Math.floor(hoursLeft / 24)} day${Math.floor(hoursLeft / 24) !== 1 ? 's' : ''} left`}
             {' — '}
             {new Date(phaseConfig.deadline).toLocaleDateString('en-US', {
               weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
