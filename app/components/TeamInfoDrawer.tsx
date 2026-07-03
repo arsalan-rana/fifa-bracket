@@ -14,8 +14,13 @@ import Skeleton from '@mui/material/Skeleton';
 import CloseIcon from '@mui/icons-material/Close';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import PersonIcon from '@mui/icons-material/Person';
-import { TEAMS, GROUP_FIXTURES } from '../../data/fifa-2026';
+import { TEAMS, GROUP_FIXTURES, KNOCKOUT_FIXTURES, PHASES } from '../../data/fifa-2026';
 import { getTeamProfile, type Player } from '../../data/team-profiles';
+
+const PHASE_TAG: Record<string, { label: string; color: string }> = {
+  group: { label: 'GS', color: PHASES.find((p) => p.id === 'group')?.color ?? '#003DA5' },
+  round32: { label: 'R32', color: PHASES.find((p) => p.id === 'round32')?.color ?? '#6366F1' },
+};
 
 const POS_ORDER = ['GK', 'DEF', 'MID', 'FWD'] as const;
 const POS_LABELS: Record<string, string> = { GK: 'GK', DEF: 'DEF', MID: 'MID', FWD: 'FWD' };
@@ -57,6 +62,7 @@ type FixtureResult = { result: string; goals1: number | null; goals2: number | n
 function GroupMatchRow({
   teamCode,
   matchNumber,
+  phase,
   team1,
   team2,
   date,
@@ -64,6 +70,7 @@ function GroupMatchRow({
 }: {
   teamCode: string;
   matchNumber: number;
+  phase: string;
   team1: string;
   team2: string;
   date: string;
@@ -109,10 +116,25 @@ function GroupMatchRow({
         '&:not(:last-child)': { borderBottom: '1px solid', borderColor: 'divider' },
       }}
     >
-      {/* Match number */}
-      <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem', minWidth: 20, textAlign: 'center' }}>
-        M{matchNumber}
-      </Typography>
+      {/* Phase tag + match number */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25, minWidth: 30, flexShrink: 0 }}>
+        <Chip
+          label={PHASE_TAG[phase]?.label ?? phase}
+          size="small"
+          sx={{
+            height: 15,
+            fontSize: '0.55rem',
+            fontWeight: 800,
+            px: 0.25,
+            bgcolor: `${PHASE_TAG[phase]?.color ?? '#666'}22`,
+            color: PHASE_TAG[phase]?.color ?? '#666',
+            '& .MuiChip-label': { px: 0.6 },
+          }}
+        />
+        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem', textAlign: 'center' }}>
+          M{matchNumber}
+        </Typography>
+      </Box>
 
       {/* Opponent */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flex: 1, minWidth: 0 }}>
@@ -180,6 +202,16 @@ export default function TeamInfoDrawer({ teamCode, onClose }: Props) {
   const teamMatches = teamCode
     ? GROUP_FIXTURES.filter((f) => f.team1 === teamCode || f.team2 === teamCode)
     : [];
+
+  const round32Matches = teamCode
+    ? KNOCKOUT_FIXTURES.filter(
+        (f) => f.phase === 'round32' && (f.team1 === teamCode || f.team2 === teamCode)
+      )
+    : [];
+
+  const allTeamMatches = [...teamMatches, ...round32Matches].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
 
   useEffect(() => {
     if (!teamCode) return;
@@ -300,7 +332,7 @@ export default function TeamInfoDrawer({ teamCode, onClose }: Props) {
           '& .MuiTab-root': { minHeight: 40, fontSize: '0.75rem', fontWeight: 700, textTransform: 'none', letterSpacing: 0.3 },
         }}
       >
-        <Tab label="Group Stage" />
+        <Tab label="Matches" />
         <Tab label="Squad" />
       </Tabs>
 
@@ -324,11 +356,12 @@ export default function TeamInfoDrawer({ teamCode, onClose }: Props) {
               </Box>
             ) : (
               <Box>
-                {teamMatches.map((f) => (
+                {allTeamMatches.map((f) => (
                   <GroupMatchRow
                     key={f.matchNumber}
                     teamCode={teamCode!}
                     matchNumber={f.matchNumber}
+                    phase={f.phase}
                     team1={f.team1}
                     team2={f.team2}
                     date={f.date}
@@ -342,15 +375,26 @@ export default function TeamInfoDrawer({ teamCode, onClose }: Props) {
             {played > 0 && (
               <Box
                 sx={{
-                  display: 'flex',
-                  justifyContent: 'space-around',
-                  px: 2,
-                  py: 1.5,
                   borderTop: '1px solid',
                   borderColor: 'divider',
                   bgcolor: 'action.hover',
                 }}
               >
+                <Typography
+                  variant="caption"
+                  color="text.disabled"
+                  sx={{ display: 'block', px: 2, pt: 1, fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}
+                >
+                  Group stage record
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-around',
+                    px: 2,
+                    py: 1,
+                  }}
+                >
                 {[
                   { label: 'P', value: played },
                   { label: 'W', value: wins, color: '#16a34a' },
@@ -369,6 +413,7 @@ export default function TeamInfoDrawer({ teamCode, onClose }: Props) {
                     </Typography>
                   </Box>
                 ))}
+                </Box>
               </Box>
             )}
           </Box>
