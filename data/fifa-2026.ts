@@ -276,16 +276,14 @@ export const KNOCKOUT_FIXTURES: Fixture[] = [
   { matchNumber: 88, phase: 'round32' as Phase, team1: 'AUS', team2: 'EGY', venue: 'AT&T Stadium',           city: 'Dallas',       date: '2026-07-03T18:00:00Z', canDraw: false, aiPrediction: 'AUS' },
 
   // Round of 16 (8 matches)
-  ...Array.from({ length: 8 }, (_, i) => ({
-    matchNumber: 89 + i,
-    phase: 'round16' as Phase,
-    team1: 'TBD',
-    team2: 'TBD',
-    venue: 'TBD',
-    city: 'TBD',
-    date: `2026-07-0${4 + Math.floor(i / 4)}T22:00:00Z`,
-    canDraw: false,
-  })),
+  { matchNumber: 89, phase: 'round16' as Phase, team1: 'CAN', team2: 'MAR', venue: 'NRG Stadium',            city: 'Houston',      date: '2026-07-04T17:00:00Z', canDraw: false },
+  { matchNumber: 90, phase: 'round16' as Phase, team1: 'PAR', team2: 'FRA', venue: 'Lincoln Financial Field', city: 'Philadelphia', date: '2026-07-04T21:00:00Z', canDraw: false },
+  { matchNumber: 91, phase: 'round16' as Phase, team1: 'BRA', team2: 'NOR', venue: 'MetLife Stadium',        city: 'New York/NJ',  date: '2026-07-05T20:00:00Z', canDraw: false },
+  { matchNumber: 92, phase: 'round16' as Phase, team1: 'MEX', team2: 'ENG', venue: 'Estadio Azteca',         city: 'Mexico City',  date: '2026-07-06T00:00:00Z', canDraw: false },
+  { matchNumber: 93, phase: 'round16' as Phase, team1: 'POR', team2: 'ESP', venue: 'AT&T Stadium',           city: 'Dallas',       date: '2026-07-06T19:00:00Z', canDraw: false },
+  { matchNumber: 94, phase: 'round16' as Phase, team1: 'USA', team2: 'BEL', venue: 'Lumen Field',            city: 'Seattle',      date: '2026-07-07T00:00:00Z', canDraw: false },
+  { matchNumber: 95, phase: 'round16' as Phase, team1: 'TBD', team2: 'TBD', venue: 'Mercedes-Benz Stadium',  city: 'Atlanta',      date: '2026-07-07T16:00:00Z', canDraw: false },
+  { matchNumber: 96, phase: 'round16' as Phase, team1: 'TBD', team2: 'TBD', venue: 'BC Place',               city: 'Vancouver',    date: '2026-07-07T20:00:00Z', canDraw: false },
 
   // Quarter-Finals (4 matches)
   ...Array.from({ length: 4 }, (_, i) => ({
@@ -440,7 +438,7 @@ export const PHASES: PhaseConfig[] = [
     id: 'round16',
     name: 'Round of 16',
     shortName: 'R16',
-    deadline: '2026-07-03T22:00:00Z',
+    deadline: '2026-07-04T16:59:00Z',
     color: '#8B5CF6',
     icon: '⚡',
     scoringType: 'pool',
