@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState, useRef } from 'react';
+import { use, useEffect, useMemo, useState, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -29,6 +29,11 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import Badge from '@mui/material/Badge';
 import Tooltip from '@mui/material/Tooltip';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Checkbox from '@mui/material/Checkbox';
+import Divider from '@mui/material/Divider';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 
@@ -54,6 +59,29 @@ interface LeaderboardEntry {
   userId: string;
   user: { name: string | null; email: string; image: string | null };
 }
+
+type CategoryKey =
+  | 'groupPoints'
+  | 'round32Points'
+  | 'round16Points'
+  | 'quarterPoints'
+  | 'semiPoints'
+  | 'finalPoints'
+  | 'scorePoints'
+  | 'bonusPoints';
+
+const CATEGORY_DEFS: { key: CategoryKey; label: string; short: string; icon: string }[] = [
+  { key: 'groupPoints', label: 'Group Stage', short: 'GS', icon: '🏟️' },
+  { key: 'round32Points', label: 'Round of 32', short: 'R32', icon: '⚽' },
+  { key: 'round16Points', label: 'Round of 16', short: 'R16', icon: '⚡' },
+  { key: 'quarterPoints', label: 'Quarter-Finals', short: 'QF', icon: '🔥' },
+  { key: 'semiPoints', label: 'Semi-Finals', short: 'SF', icon: '🏅' },
+  { key: 'finalPoints', label: 'Final', short: 'F', icon: '🏆' },
+  { key: 'scorePoints', label: 'Score Predictions', short: 'Score', icon: '⭐' },
+  { key: 'bonusPoints', label: 'Bonus Questions', short: 'Bonus', icon: '🎯' },
+];
+
+const ALL_CATEGORY_KEYS: CategoryKey[] = CATEGORY_DEFS.map((c) => c.key);
 
 interface TauntReaction {
   emoji: string;
@@ -132,6 +160,28 @@ export default function LeaderboardPage({ params }: Props) {
   const [taunts, setTaunts] = useState<Record<string, TauntInfo[]>>({});
   const [myActiveTaunts, setMyActiveTaunts] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Category filter
+  const [selectedCategories, setSelectedCategories] = useState<Set<CategoryKey>>(
+    () => new Set(ALL_CATEGORY_KEYS)
+  );
+  const [filterAnchorEl, setFilterAnchorEl] = useState<HTMLElement | null>(null);
+  const isFiltered = selectedCategories.size < ALL_CATEGORY_KEYS.length;
+
+  function toggleCategory(key: CategoryKey) {
+    setSelectedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function categoryDimmed(key: CategoryKey | null): boolean {
+    if (!isFiltered) return false;
+    if (key === null) return true; // penalty is always excluded from a filtered sum
+    return !selectedCategories.has(key);
+  }
 
   // Taunt dialog
   const [tauntTarget, setTauntTarget] = useState<{ email: string; name: string } | null>(null);
@@ -295,6 +345,29 @@ export default function LeaderboardPage({ params }: Props) {
     }
   }
 
+  const displayEntries = useMemo(() => {
+    const withFilteredTotal = entries.map((e) => {
+      const filteredSum = CATEGORY_DEFS.reduce(
+        (sum, cat) => (selectedCategories.has(cat.key) ? sum + e[cat.key] : sum),
+        0
+      );
+      // When every category is selected this reduces to totalPoints exactly (penalty included);
+      // when narrowed to a subset, penalty is left out since it isn't a scoring category.
+      const filteredTotal = filteredSum - (isFiltered ? 0 : e.penalty);
+      return { ...e, filteredTotal };
+    });
+    return withFilteredTotal.sort((a, b) => b.filteredTotal - a.filteredTotal || a.rank - b.rank);
+  }, [entries, selectedCategories, isFiltered]);
+
+  const selectedShortLabels = CATEGORY_DEFS.filter((c) => selectedCategories.has(c.key)).map((c) => c.short);
+  const filterSummaryFull = selectedShortLabels.length === 0 ? 'none selected' : selectedShortLabels.join(' + ');
+  const filterSummaryShort =
+    selectedShortLabels.length === 0
+      ? 'none'
+      : selectedShortLabels.length > 3
+      ? `${selectedShortLabels.slice(0, 2).join('+')}+${selectedShortLabels.length - 2} more`
+      : selectedShortLabels.join(' + ');
+
   const medals = ['🥇', '🥈', '🥉'];
 
   if (loading) {
@@ -322,6 +395,16 @@ export default function LeaderboardPage({ params }: Props) {
               />
             )}
             <IconButton
+              size="small"
+              onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+              sx={{ color: isFiltered ? 'secondary.main' : 'text.secondary' }}
+              title="Filter scoring categories"
+            >
+              <Badge badgeContent={isFiltered ? selectedCategories.size : 0} color="secondary" max={9}>
+                <FilterListIcon fontSize="small" />
+              </Badge>
+            </IconButton>
+            <IconButton
               component={Link}
               href={`/leagues/${slug}/notifications`}
               size="small"
@@ -334,7 +417,57 @@ export default function LeaderboardPage({ params }: Props) {
           </Box>
         </Box>
 
-        {entries.length === 0 ? (
+        {isFiltered && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+            <Chip
+              label={`Filtered: ${filterSummaryFull}`}
+              onDelete={() => setSelectedCategories(new Set(ALL_CATEGORY_KEYS))}
+              size="small"
+              color="secondary"
+              variant="outlined"
+              sx={{ fontWeight: 600, fontSize: '0.7rem', maxWidth: '100%', '& .MuiChip-label': { whiteSpace: 'normal' } }}
+            />
+          </Box>
+        )}
+
+        <Menu
+          anchorEl={filterAnchorEl}
+          open={Boolean(filterAnchorEl)}
+          onClose={() => setFilterAnchorEl(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{ paper: { sx: { borderRadius: 2, minWidth: 240 } } }}
+        >
+          <Typography
+            variant="caption"
+            sx={{ display: 'block', px: 2, pt: 1, pb: 0.5, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.65rem' }}
+          >
+            Include in Total
+          </Typography>
+          {CATEGORY_DEFS.map((cat) => (
+            <MenuItem
+              key={cat.key}
+              onClick={() => toggleCategory(cat.key)}
+              sx={{ py: 0.5, px: 1.5 }}
+              disableRipple
+            >
+              <Checkbox checked={selectedCategories.has(cat.key)} size="small" sx={{ p: 0.5, mr: 0.5 }} />
+              <Typography sx={{ mr: 1 }}>{cat.icon}</Typography>
+              <Typography variant="body2">{cat.label}</Typography>
+            </MenuItem>
+          ))}
+          <Divider sx={{ my: 0.5 }} />
+          <Box sx={{ display: 'flex', justifyContent: 'space-around', px: 1, pb: 0.5 }}>
+            <Button size="small" onClick={() => setSelectedCategories(new Set(ALL_CATEGORY_KEYS))}>
+              Select all
+            </Button>
+            <Button size="small" onClick={() => setSelectedCategories(new Set())}>
+              Clear all
+            </Button>
+          </Box>
+        </Menu>
+
+        {displayEntries.length === 0 ? (
           <Card sx={{ p: 4, textAlign: 'center' }}>
             <Typography color="text.secondary">
               No scores yet. Submit picks and refresh the leaderboard.
@@ -347,12 +480,25 @@ export default function LeaderboardPage({ params }: Props) {
                 <TableRow sx={{ background: 'rgba(0,61,165,0.2)' }}>
                   <TableCell sx={{ fontWeight: 700, width: 50 }}>Rank</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Player</TableCell>
-                  <TableCell sx={{ fontWeight: 700, textAlign: 'right' }}>Total</TableCell>
+                  <TableCell sx={{ fontWeight: 700, textAlign: 'right' }}>
+                    <Box sx={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      <span>Total</span>
+                      {isFiltered && (
+                        <Typography
+                          component="span"
+                          title={filterSummaryFull}
+                          sx={{ fontWeight: 500, color: 'text.secondary', fontSize: '0.6rem', lineHeight: 1.3, letterSpacing: 0.2 }}
+                        >
+                          {filterSummaryShort}
+                        </Typography>
+                      )}
+                    </Box>
+                  </TableCell>
                   <TableCell sx={{ width: 36 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
-                {entries.map((entry, idx) => {
+                {displayEntries.map((entry, idx) => {
                   const isMe = entry.user.email === session?.user?.email;
                   const knockoutPts =
                     entry.round32Points +
@@ -387,7 +533,7 @@ export default function LeaderboardPage({ params }: Props) {
                             <Typography sx={{ fontWeight: 800 }} color={idx === 0 ? 'secondary.main' : 'text.primary'}>
                               {idx < 3 ? medals[idx] : idx + 1}
                             </Typography>
-                            <RankDelta rank={entry.rank} prevRank={entry.prevRank} />
+                            {!isFiltered && <RankDelta rank={entry.rank} prevRank={entry.prevRank} />}
                           </Box>
                         </TableCell>
                         <TableCell>
@@ -544,7 +690,7 @@ export default function LeaderboardPage({ params }: Props) {
                         </TableCell>
                         <TableCell sx={{ textAlign: 'right' }}>
                           <Typography sx={{ fontWeight: 800 }} color="secondary.main">
-                            {entry.totalPoints}
+                            {entry.filteredTotal}
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ textAlign: 'center', p: 0.5 }}>
@@ -575,17 +721,26 @@ export default function LeaderboardPage({ params }: Props) {
                               }}
                             >
                               {[
-                                { label: 'GS', title: 'Group Stage', value: entry.groupPoints },
-                                { label: 'R32', title: 'Round of 32', value: entry.round32Points },
-                                { label: 'R16', title: 'Round of 16', value: entry.round16Points },
-                                { label: 'QF', title: 'Quarter-finals', value: entry.quarterPoints },
-                                { label: 'SF', title: 'Semi-finals', value: entry.semiPoints },
-                                { label: 'F', title: 'Final', value: entry.finalPoints },
-                                { label: 'Score', title: 'Score predictions', value: entry.scorePoints ?? 0, color: entry.scorePoints > 0 ? '#C9A73A' : undefined },
-                                { label: 'Bonus', title: 'Bonus questions', value: entry.bonusPoints, color: entry.bonusPoints > 0 ? '#22c55e' : undefined },
-                                ...(entry.penalty > 0 ? [{ label: 'Penalty', title: 'Late penalty', value: -entry.penalty, color: '#ef4444' as string }] : []),
-                              ].map(({ label, title, value, color }) => (
-                                <Box key={label} sx={{ textAlign: 'center', minWidth: 36 }} title={title}>
+                                { label: 'GS', title: 'Group Stage', value: entry.groupPoints, key: 'groupPoints' as CategoryKey },
+                                { label: 'R32', title: 'Round of 32', value: entry.round32Points, key: 'round32Points' as CategoryKey },
+                                { label: 'R16', title: 'Round of 16', value: entry.round16Points, key: 'round16Points' as CategoryKey },
+                                { label: 'QF', title: 'Quarter-finals', value: entry.quarterPoints, key: 'quarterPoints' as CategoryKey },
+                                { label: 'SF', title: 'Semi-finals', value: entry.semiPoints, key: 'semiPoints' as CategoryKey },
+                                { label: 'F', title: 'Final', value: entry.finalPoints, key: 'finalPoints' as CategoryKey },
+                                { label: 'Score', title: 'Score predictions', value: entry.scorePoints ?? 0, color: entry.scorePoints > 0 ? '#C9A73A' : undefined, key: 'scorePoints' as CategoryKey },
+                                { label: 'Bonus', title: 'Bonus questions', value: entry.bonusPoints, color: entry.bonusPoints > 0 ? '#22c55e' : undefined, key: 'bonusPoints' as CategoryKey },
+                                ...(entry.penalty > 0 ? [{ label: 'Penalty', title: 'Late penalty (excluded while filtering)', value: -entry.penalty, color: '#ef4444' as string, key: null }] : []),
+                              ].map(({ label, title, value, color, key }) => (
+                                <Box
+                                  key={label}
+                                  sx={{
+                                    textAlign: 'center',
+                                    minWidth: 36,
+                                    opacity: categoryDimmed(key) ? 0.35 : 1,
+                                    transition: 'opacity 0.15s',
+                                  }}
+                                  title={title}
+                                >
                                   <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.58rem', textTransform: 'uppercase', letterSpacing: 0.4, lineHeight: 1.2 }}>
                                     {label}
                                   </Typography>
