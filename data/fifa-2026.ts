@@ -282,8 +282,8 @@ export const KNOCKOUT_FIXTURES: Fixture[] = [
   { matchNumber: 92, phase: 'round16' as Phase, team1: 'MEX', team2: 'ENG', venue: 'Estadio Azteca',         city: 'Mexico City',  date: '2026-07-06T00:00:00Z', canDraw: false },
   { matchNumber: 93, phase: 'round16' as Phase, team1: 'POR', team2: 'ESP', venue: 'AT&T Stadium',           city: 'Dallas',       date: '2026-07-06T19:00:00Z', canDraw: false },
   { matchNumber: 94, phase: 'round16' as Phase, team1: 'USA', team2: 'BEL', venue: 'Lumen Field',            city: 'Seattle',      date: '2026-07-07T00:00:00Z', canDraw: false },
-  { matchNumber: 95, phase: 'round16' as Phase, team1: 'TBD', team2: 'TBD', venue: 'Mercedes-Benz Stadium',  city: 'Atlanta',      date: '2026-07-07T16:00:00Z', canDraw: false },
-  { matchNumber: 96, phase: 'round16' as Phase, team1: 'TBD', team2: 'TBD', venue: 'BC Place',               city: 'Vancouver',    date: '2026-07-07T20:00:00Z', canDraw: false },
+  { matchNumber: 95, phase: 'round16' as Phase, team1: 'ARG', team2: 'EGY', venue: 'Mercedes-Benz Stadium',  city: 'Atlanta',      date: '2026-07-07T16:00:00Z', canDraw: false },
+  { matchNumber: 96, phase: 'round16' as Phase, team1: 'SUI', team2: 'COL', venue: 'BC Place',               city: 'Vancouver',    date: '2026-07-07T20:00:00Z', canDraw: false },
 
   // Quarter-Finals (4 matches)
   ...Array.from({ length: 4 }, (_, i) => ({

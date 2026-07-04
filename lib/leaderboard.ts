@@ -21,7 +21,8 @@ function computeStreak(
 }
 
 export async function refreshLeagueLeaderboard(leagueId: string): Promise<number> {
-  const [members, fixtureResults, bonusAnswers, allPredictions, allChips, allBonus] = await Promise.all([
+  const [league, members, fixtureResults, bonusAnswers, allPredictions, allChips, allBonus] = await Promise.all([
+    db.league.findUnique({ where: { id: leagueId }, select: { disableLatePenalty: true } }),
     db.leagueMember.findMany({ where: { leagueId }, include: { user: true } }),
     db.fixtureResult.findMany(),
     db.bonusAnswer.findMany(),
@@ -104,7 +105,9 @@ export async function refreshLeagueLeaderboard(leagueId: string): Promise<number
     }, 0);
 
     // Penalty = days late × latePenaltyPerDay (not per pick)
-    const latePreds = userPredictions.filter((p) => p.isLate);
+    // Skipped entirely when the league currently waives late penalties, regardless of
+    // what isLate was set to at submission time (the flag may predate the league setting).
+    const latePreds = league?.disableLatePenalty ? [] : userPredictions.filter((p) => p.isLate);
     let penalty = 0;
     if (latePreds.length > 0) {
       let maxDaysLate = 0;
