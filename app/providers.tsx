@@ -6,6 +6,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { AppRouterCacheProvider } from '@mui/material-nextjs/v16-appRouter';
 import { darkTheme, lightTheme } from '../lib/theme';
 import { ThemeModeProvider, useThemeMode } from './theme-context';
+import PostHogProvider from './components/PostHogProvider';
 import type { Session } from 'next-auth';
 
 function ThemedApp({ children }: { children: React.ReactNode }) {
@@ -28,11 +29,13 @@ export default function Providers({
 }) {
   return (
     <SessionProvider session={session}>
-      <AppRouterCacheProvider>
-        <ThemeModeProvider>
-          <ThemedApp>{children}</ThemedApp>
-        </ThemeModeProvider>
-      </AppRouterCacheProvider>
+      <PostHogProvider>
+        <AppRouterCacheProvider>
+          <ThemeModeProvider>
+            <ThemedApp>{children}</ThemedApp>
+          </ThemeModeProvider>
+        </AppRouterCacheProvider>
+      </PostHogProvider>
     </SessionProvider>
   );
 }
