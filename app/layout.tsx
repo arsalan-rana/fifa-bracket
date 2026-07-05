@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../lib/auth';
 import Providers from './providers';
@@ -33,6 +35,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" className="h-full">
       <body className="min-h-full flex flex-col">
         <Providers session={session}>{children}</Providers>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
