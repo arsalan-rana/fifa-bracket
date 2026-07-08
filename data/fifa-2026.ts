@@ -286,16 +286,10 @@ export const KNOCKOUT_FIXTURES: Fixture[] = [
   { matchNumber: 96, phase: 'round16' as Phase, team1: 'SUI', team2: 'COL', venue: 'BC Place',               city: 'Vancouver',    date: '2026-07-07T20:00:00Z', canDraw: false },
 
   // Quarter-Finals (4 matches)
-  ...Array.from({ length: 4 }, (_, i) => ({
-    matchNumber: 97 + i,
-    phase: 'quarter' as Phase,
-    team1: 'TBD',
-    team2: 'TBD',
-    venue: 'TBD',
-    city: 'TBD',
-    date: `2026-07-${9 + Math.floor(i / 2)}T22:00:00Z`,
-    canDraw: false,
-  })),
+  { matchNumber: 97, phase: 'quarter' as Phase, team1: 'FRA', team2: 'MAR', venue: 'Gillette Stadium', city: 'Boston',      date: '2026-07-09T20:00:00Z', canDraw: false },
+  { matchNumber: 98, phase: 'quarter' as Phase, team1: 'ESP', team2: 'BEL', venue: 'SoFi Stadium',     city: 'Los Angeles', date: '2026-07-10T19:00:00Z', canDraw: false },
+  { matchNumber: 99, phase: 'quarter' as Phase, team1: 'NOR', team2: 'ENG', venue: 'Hard Rock Stadium', city: 'Miami',      date: '2026-07-11T21:00:00Z', canDraw: false },
+  { matchNumber: 100, phase: 'quarter' as Phase, team1: 'ARG', team2: 'SUI', venue: 'Arrowhead Stadium', city: 'Kansas City', date: '2026-07-12T01:00:00Z', canDraw: false },
 
   // Semi-Finals (2 matches)
   { matchNumber: 101, phase: 'semi', team1: 'TBD', team2: 'TBD', venue: 'AT&T Stadium', city: 'Dallas', date: '2026-07-14T22:00:00Z', canDraw: false },
@@ -449,7 +443,7 @@ export const PHASES: PhaseConfig[] = [
     id: 'quarter',
     name: 'Quarter-Finals',
     shortName: 'QF',
-    deadline: '2026-07-08T22:00:00Z',
+    deadline: '2026-07-09T19:59:00Z',
     color: '#EC4899',
     icon: '🔥',
     scoringType: 'pool',
