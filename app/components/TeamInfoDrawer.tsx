@@ -20,6 +20,10 @@ import { getTeamProfile, type Player } from '../../data/team-profiles';
 const PHASE_TAG: Record<string, { label: string; color: string }> = {
   group: { label: 'GS', color: PHASES.find((p) => p.id === 'group')?.color ?? '#003DA5' },
   round32: { label: 'R32', color: PHASES.find((p) => p.id === 'round32')?.color ?? '#6366F1' },
+  round16: { label: 'R16', color: PHASES.find((p) => p.id === 'round16')?.color ?? '#8B5CF6' },
+  quarter: { label: 'QF', color: PHASES.find((p) => p.id === 'quarter')?.color ?? '#EC4899' },
+  semi: { label: 'SF', color: PHASES.find((p) => p.id === 'semi')?.color ?? '#F59E0B' },
+  final: { label: 'F', color: PHASES.find((p) => p.id === 'final')?.color ?? '#C9A73A' },
 };
 
 const POS_ORDER = ['GK', 'DEF', 'MID', 'FWD'] as const;
@@ -203,13 +207,11 @@ export default function TeamInfoDrawer({ teamCode, onClose }: Props) {
     ? GROUP_FIXTURES.filter((f) => f.team1 === teamCode || f.team2 === teamCode)
     : [];
 
-  const round32Matches = teamCode
-    ? KNOCKOUT_FIXTURES.filter(
-        (f) => f.phase === 'round32' && (f.team1 === teamCode || f.team2 === teamCode)
-      )
+  const knockoutMatches = teamCode
+    ? KNOCKOUT_FIXTURES.filter((f) => f.team1 === teamCode || f.team2 === teamCode)
     : [];
 
-  const allTeamMatches = [...teamMatches, ...round32Matches].sort(
+  const allTeamMatches = [...teamMatches, ...knockoutMatches].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
