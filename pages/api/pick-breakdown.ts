@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../lib/auth';
+import { authOptions, isAdmin } from '../../lib/auth';
 import { db } from '../../lib/db';
 import { ALL_FIXTURES, PHASES, TEAMS } from '../../data/fifa-2026';
 
@@ -13,14 +13,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { leagueId, userId } = req.query as { leagueId: string; userId: string };
   if (!leagueId || !userId) return res.status(400).json({ error: 'leagueId and userId required' });
 
-  // Requester must be a league member
+  // Requester must be a league member, unless they're the site admin debugging a league they run
   const requester = await db.user.findUnique({ where: { email: session.user.email } });
   if (!requester) return res.status(401).json({ error: 'Unauthorized' });
 
   const isMember = await db.leagueMember.findUnique({
     where: { leagueId_userId: { leagueId, userId: requester.id } },
   });
-  if (!isMember) return res.status(403).json({ error: 'Not a league member' });
+  if (!isMember && !isAdmin(session.user.email)) return res.status(403).json({ error: 'Not a league member' });
 
   const [predictions, allLeaguePredictions, fixtureResults, members, userChips] = await Promise.all([
     db.prediction.findMany({ where: { userId, leagueId } }),

@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../lib/auth';
+import { authOptions, isAdmin } from '../../lib/auth';
 import { db } from '../../lib/db';
 import { ALL_FIXTURES } from '../../data/fifa-2026';
 import type { Phase } from '../../data/fifa-2026';
@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const isMember = await db.leagueMember.findUnique({
     where: { leagueId_userId: { leagueId, userId: user.id } },
   });
-  if (!isMember) return res.status(403).json({ error: 'Not a league member' });
+  if (!isMember && !isAdmin(session.user.email)) return res.status(403).json({ error: 'Not a league member' });
 
   // Get match numbers for the requested phase
   const phaseMatchNumbers = ALL_FIXTURES

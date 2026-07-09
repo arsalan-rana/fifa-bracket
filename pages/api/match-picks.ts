@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../lib/auth';
+import { authOptions, isAdmin } from '../../lib/auth';
 import { db } from '../../lib/db';
 import { ALL_FIXTURES, isPhasePastDeadline } from '../../data/fifa-2026';
 
@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const member = await db.leagueMember.findFirst({
     where: { leagueId, user: { email: session.user.email } },
   });
-  if (!member) return res.status(403).json({ error: 'Not a league member' });
+  if (!member && !isAdmin(session.user.email)) return res.status(403).json({ error: 'Not a league member' });
 
   const pastDeadlineMatchNumbers = ALL_FIXTURES
     .filter((f) => isPhasePastDeadline(f.phase))

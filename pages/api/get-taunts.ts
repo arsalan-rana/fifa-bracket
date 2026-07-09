@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../lib/auth';
+import { authOptions, isAdmin } from '../../lib/auth';
 import { db } from '../../lib/db';
 
 const TAUNT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -18,7 +18,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     where: { leagueId, user: { email: session.user.email } },
     include: { user: { select: { id: true } } },
   });
-  if (!member) return res.status(403).json({ error: 'Not a league member' });
+  if (!member && !isAdmin(session.user.email)) return res.status(403).json({ error: 'Not a league member' });
+
+  // Admin viewing a league they don't belong to has no membership row — fall back to their own user id
+  const requesterId = member?.user.id ?? (await db.user.findUnique({ where: { email: session.user.email } }))?.id ?? null;
 
   const since = new Date(Date.now() - TAUNT_TTL_MS);
 
@@ -55,7 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       for (const r of t.reactions) {
         if (!reactionMap[r.emoji]) reactionMap[r.emoji] = { count: 0, myReaction: false };
         reactionMap[r.emoji].count++;
-        if (r.userId === member.user.id) reactionMap[r.emoji].myReaction = true;
+        if (r.userId === requesterId) reactionMap[r.emoji].myReaction = true;
       }
       const reactions = REACTION_EMOJIS
         .map((emoji) => ({ emoji, ...reactionMap[emoji] }))
