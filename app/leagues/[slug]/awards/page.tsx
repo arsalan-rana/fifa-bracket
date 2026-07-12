@@ -47,7 +47,6 @@ const GROUP_LABELS: Record<AwardResult['group'], string> = {
 
 const PHASE_COLOR: Record<string, string> = Object.fromEntries(PHASES.map((p) => [`phase-${p.id}`, p.color]));
 const GOLD = '#C9A73A';
-const MAX_WINNERS_SHOWN = 4;
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -64,8 +63,6 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function AwardCard({ award }: { award: AwardResult }) {
   const accentColor = award.group === 'phase' ? (PHASE_COLOR[award.key] ?? GOLD) : GOLD;
-  const shown = award.winners.slice(0, MAX_WINNERS_SHOWN);
-  const overflow = award.winners.length - shown.length;
 
   return (
     <Card
@@ -96,7 +93,7 @@ function AwardCard({ award }: { award: AwardResult }) {
           </Typography>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {shown.map((w) => (
+            {award.winners.map((w) => (
               <Box key={w.userId} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Avatar src={w.image ?? undefined} sx={{ width: 28, height: 28, fontSize: '0.7rem', flexShrink: 0 }}>
                   {w.name[0]?.toUpperCase()}
@@ -111,11 +108,6 @@ function AwardCard({ award }: { award: AwardResult }) {
                 </Box>
               </Box>
             ))}
-            {overflow > 0 && (
-              <Typography variant="caption" color="text.disabled" sx={{ pl: '36px' }}>
-                +{overflow} more tied
-              </Typography>
-            )}
           </Box>
         )}
       </CardContent>
