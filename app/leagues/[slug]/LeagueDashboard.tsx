@@ -41,6 +41,7 @@ interface LeagueDashboardProps {
     scoreEnabled: boolean;
     allowLateSubmission: boolean;
     disableLatePenalty: boolean;
+    awardsRevealed: boolean;
     members: {
       userId: string;
       isVerified: boolean;
@@ -102,6 +103,9 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
   const [disableLatePenalty, setDisableLatePenalty] = useState(league.disableLatePenalty);
   const [savingLate, setSavingLate] = useState(false);
   const [lateMsg, setLateMsg] = useState('');
+  const [awardsRevealed, setAwardsRevealed] = useState(league.awardsRevealed);
+  const [savingAwards, setSavingAwards] = useState(false);
+  const [awardsMsg, setAwardsMsg] = useState('');
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -268,6 +272,28 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
       else { const d = await res.json(); setLateMsg(d.error || 'Failed'); }
     } finally {
       setSavingLate(false);
+    }
+  }
+
+  async function handleSaveAwards(nextRevealed: boolean) {
+    setSavingAwards(true);
+    setAwardsMsg('');
+    try {
+      const res = await fetch('/api/update-league', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leagueId: league.id,
+          isPrizePool: prizePoolEnabled,
+          buyInAmount: prizePoolEnabled ? parseFloat(buyInAmount) : null,
+          buyInCurrency: 'CAD',
+          awardsRevealed: nextRevealed,
+        }),
+      });
+      if (res.ok) { setAwardsRevealed(nextRevealed); setAwardsMsg('Saved'); router.refresh(); }
+      else { const d = await res.json(); setAwardsMsg(d.error || 'Failed'); }
+    } finally {
+      setSavingAwards(false);
     }
   }
 
@@ -863,6 +889,37 @@ export default function LeagueDashboard({ league, currentUserEmail, isAdmin, cur
                     {lateMsg && (
                       <Typography variant="caption" color={lateMsg === 'Saved' ? 'success.main' : 'error.main'} sx={{ display: 'block', mt: 0.5 }}>
                         {lateMsg}
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Divider sx={{ my: 1.5 }} />
+
+                  {/* Awards reveal toggle */}
+                  <Box sx={{ mb: 2 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={awardsRevealed}
+                          onChange={(e) => handleSaveAwards(e.target.checked)}
+                          disabled={savingAwards}
+                          color="secondary"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>🏅 Reveal Tournament Awards</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {awardsRevealed
+                              ? 'Live — members can see who won each award'
+                              : 'Hidden — flip on when you’re ready to reveal winners to the league'}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                    {awardsMsg && (
+                      <Typography variant="caption" color={awardsMsg === 'Saved' ? 'success.main' : 'error.main'} sx={{ display: 'block', mt: 0.5 }}>
+                        {awardsMsg}
                       </Typography>
                     )}
                   </Box>

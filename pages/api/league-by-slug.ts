@@ -44,6 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     scoreEnabled: league.scoreEnabled,
     allowLateSubmission: league.allowLateSubmission,
     disableLatePenalty: league.disableLatePenalty,
+    awardsRevealed: league.awardsRevealed,
     isVerified: isMember?.isVerified ?? true,
     memberCount: league._count.members,
     members: members.map((m) => ({ name: m.user.name, email: m.user.email, image: m.user.image })),

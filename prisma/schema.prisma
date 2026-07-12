@@ -21,6 +21,7 @@ model League {
   scoreEnabled          Boolean            @default(false)
   allowLateSubmission   Boolean            @default(false)
   disableLatePenalty    Boolean            @default(false)
+  awardsRevealed        Boolean            @default(false)
   members          LeagueMember[]
   predictions      Prediction[]
   bonusPredictions BonusPrediction[]

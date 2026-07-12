@@ -24,6 +24,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
+import MilitaryTechIcon from '@mui/icons-material/MilitaryTech';
 import StarsIcon from '@mui/icons-material/Stars';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -55,6 +56,7 @@ const MAIN_NAV_ITEMS = [
   { label: 'Fixtures', icon: <EventNoteIcon fontSize="small" />, href: '/fixtures' },
   { label: 'Bonus', icon: <StarsIcon fontSize="small" />, href: '/bonus' },
   { label: 'Leaderboard', icon: <LeaderboardIcon fontSize="small" />, href: '/leaderboard' },
+  { label: 'Awards', icon: <MilitaryTechIcon fontSize="small" />, href: '/awards' },
 ];
 
 const BOTTOM_NAV_ITEMS = [
@@ -66,6 +68,7 @@ const PAGE_LABELS: Record<string, string> = {
   fixtures: 'Fixtures',
   bonus: 'Bonus',
   leaderboard: 'Leaderboard',
+  awards: 'Awards',
   notifications: 'Notifications',
   admin: 'Admin',
 };
