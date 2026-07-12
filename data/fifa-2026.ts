@@ -292,8 +292,8 @@ export const KNOCKOUT_FIXTURES: Fixture[] = [
   { matchNumber: 100, phase: 'quarter' as Phase, team1: 'ARG', team2: 'SUI', venue: 'Arrowhead Stadium', city: 'Kansas City', date: '2026-07-12T01:00:00Z', canDraw: false },
 
   // Semi-Finals (2 matches)
-  { matchNumber: 101, phase: 'semi', team1: 'TBD', team2: 'TBD', venue: 'AT&T Stadium', city: 'Dallas', date: '2026-07-14T22:00:00Z', canDraw: false },
-  { matchNumber: 102, phase: 'semi', team1: 'TBD', team2: 'TBD', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', date: '2026-07-15T22:00:00Z', canDraw: false },
+  { matchNumber: 101, phase: 'semi', team1: 'FRA', team2: 'ESP', venue: 'AT&T Stadium', city: 'Dallas', date: '2026-07-14T19:00:00Z', canDraw: false },
+  { matchNumber: 102, phase: 'semi', team1: 'ENG', team2: 'ARG', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', date: '2026-07-15T19:00:00Z', canDraw: false },
 
   // Third Place
   { matchNumber: 103, phase: 'final', team1: 'TBD', team2: 'TBD', venue: 'Hard Rock Stadium', city: 'Miami', date: '2026-07-18T22:00:00Z', canDraw: false },
@@ -454,7 +454,7 @@ export const PHASES: PhaseConfig[] = [
     id: 'semi',
     name: 'Semi-Finals',
     shortName: 'SF',
-    deadline: '2026-07-13T22:00:00Z',
+    deadline: '2026-07-14T18:59:00Z',
     color: '#F59E0B',
     icon: '💎',
     scoringType: 'pool',
