@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use, useCallback } from 'react';
+import { useState, useEffect, useRef, use, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -452,6 +452,7 @@ export default function BracketPage({ params }: Props) {
   }
 
   const [viewPhase, setViewPhase] = useState<Phase>(getDefaultViewPhase());
+  const hasManuallyChangedViewRef = useRef(false);
 
   const phaseConfig = PHASES.find((p) => p.id === viewPhase)!;
   const isPastDeadline = isPhasePastDeadline(viewPhase);
@@ -486,7 +487,11 @@ export default function BracketPage({ params }: Props) {
         setAllowLateSubmission(!!leagueData.allowLateSubmission);
 
         // Get existing predictions
-        const predRes = await fetch(`/api/get-predictions?leagueId=${leagueData.id}`);
+        const [predRes, resultsRes] = await Promise.all([
+          fetch(`/api/get-predictions?leagueId=${leagueData.id}`),
+          fetch('/api/fixture-results'),
+        ]);
+
         if (predRes.ok) {
           const data = await predRes.json();
           const predMap: Predictions = {};
@@ -503,6 +508,23 @@ export default function BracketPage({ params }: Props) {
             };
           }
           setChips(chipMap);
+        }
+
+        // The default-view kickoff buffer is a fallback for when we can't know if a phase
+        // has wrapped up yet — if results for the previous phase are already in, skip
+        // waiting out the timer and jump straight to the current phase.
+        if (resultsRes.ok && !hasManuallyChangedViewRef.current) {
+          const { results } = await resultsRes.json();
+          const phases = PHASES.map((p) => p.id as Phase);
+          const idx = phases.indexOf(currentPhase);
+          if (idx > 0) {
+            const prev = phases[idx - 1];
+            const prevFixtures = ALL_FIXTURES.filter(
+              (f) => f.phase === prev && f.team1 !== 'TBD' && f.team2 !== 'TBD'
+            );
+            const allDecided = prevFixtures.length > 0 && prevFixtures.every((f) => results[f.matchNumber]);
+            if (allDecided) setViewPhase(currentPhase);
+          }
         }
 
       } finally {
@@ -831,7 +853,7 @@ export default function BracketPage({ params }: Props) {
                   key={p.id}
                   size="small"
                   variant={isView ? 'contained' : 'outlined'}
-                  onClick={() => setViewPhase(p.id as Phase)}
+                  onClick={() => { hasManuallyChangedViewRef.current = true; setViewPhase(p.id as Phase); }}
                   sx={{
                     fontWeight: 700,
                     fontSize: '0.75rem',
