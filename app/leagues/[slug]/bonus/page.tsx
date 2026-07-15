@@ -274,10 +274,11 @@ export default function BonusPage({ params }: Props) {
     load();
   }, [slug]);
 
-  // Auto-switch to everyone's tab once the deadline passes for regular members
+  // Auto-switch to everyone's tab once the deadline passes — the "My Picks" form has nothing
+  // left to do once it's locked, so everyone (including admin) should land on the answers instead.
   useEffect(() => {
-    if (isPastDeadline && !isAdminUser && tab === 0) setTab(1);
-  }, [isPastDeadline, isAdminUser]);
+    if (isPastDeadline && tab === 0) setTab(1);
+  }, [isPastDeadline]);
 
   async function handleSubmit() {
     if (!leagueId) return;
