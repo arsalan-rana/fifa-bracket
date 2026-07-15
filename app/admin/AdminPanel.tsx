@@ -701,7 +701,7 @@ export default function AdminPanel({ existingResults, existingBonusAnswers }: Ad
           Bonus Question Answers
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 2 }}>
-          Set the official answer for each bonus question. Saving triggers a full leaderboard recalculation across all leagues.
+          Set the official answer for each bonus question. For a genuine tie with no published tiebreak, separate multiple correct answers with commas — everyone who picked any of them gets full points. Saving triggers a full leaderboard recalculation across all leagues.
         </Typography>
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -729,8 +729,8 @@ export default function AdminPanel({ existingResults, existingBonusAnswers }: Ad
                       label="Official answer"
                       value={draft}
                       onChange={(e) => setBonusDraft((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                      placeholder={q.type === 'number' ? 'e.g. 163' : q.type === 'team' ? 'e.g. ARG' : 'e.g. Mbappe'}
-                      sx={{ width: 180 }}
+                      placeholder={q.type === 'number' ? 'e.g. 163' : q.type === 'team' ? 'e.g. ARG or ARG, ESP' : 'e.g. Mbappe or G, H'}
+                      sx={{ width: 220 }}
                       type={q.type === 'number' ? 'number' : 'text'}
                     />
                     <Button

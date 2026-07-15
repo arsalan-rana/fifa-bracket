@@ -144,6 +144,16 @@ export function computeClosestWinners(
   return winners;
 }
 
+/** A tie with no published tiebreak is recorded as multiple comma-separated correct answers. */
+export function parseBonusAnswers(raw: string): string[] {
+  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+export function isBonusAnswerCorrect(userAnswer: string, officialRaw: string): boolean {
+  const options = parseBonusAnswers(officialRaw).map((o) => o.toLowerCase());
+  return options.includes(userAnswer.trim().toLowerCase());
+}
+
 export function calcBonusPoints(
   userId: string,
   predictions: { questionId: string; answer: string }[],
@@ -164,8 +174,7 @@ export function calcBonusPoints(
     } else {
       const answer = answers.find((a) => a.questionId === pred.questionId);
       if (!answer) continue;
-      const isCorrect = pred.answer.trim().toLowerCase() === answer.answer.trim().toLowerCase();
-      if (isCorrect) total += question.points;
+      if (isBonusAnswerCorrect(pred.answer, answer.answer)) total += question.points;
     }
   }
 

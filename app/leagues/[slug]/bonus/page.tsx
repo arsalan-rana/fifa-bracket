@@ -24,8 +24,10 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import LockClockIcon from '@mui/icons-material/LockClock';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import { useSession } from 'next-auth/react';
 import { BONUS_QUESTIONS, TEAMS, isPhasePastDeadline } from '../../../../data/fifa-2026';
+import { parseBonusAnswers, isBonusAnswerCorrect } from '../../../../lib/tournament';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -75,8 +77,8 @@ function EveryonesPicks({ leagueId }: { leagueId: string }) {
         const official = officialMap.get(q.id);
         const qPreds = predictions.filter((p) => p.questionId === q.id);
 
-        // For number type, find closest answer(s)
-        let closestUserIds: Set<string> | null = null;
+        // For number type, find closest answer(s); otherwise match against the (possibly multi-value) official answer
+        let winnerIds: Set<string> | null = null;
         if (q.type === 'number' && official) {
           const correctVal = parseFloat(official);
           if (!isNaN(correctVal)) {
@@ -85,13 +87,20 @@ function EveryonesPicks({ leagueId }: { leagueId: string }) {
               const v = parseFloat(p.answer);
               if (!isNaN(v)) minDist = Math.min(minDist, Math.abs(v - correctVal));
             }
-            closestUserIds = new Set(
+            winnerIds = new Set(
               qPreds
                 .filter((p) => !isNaN(parseFloat(p.answer)) && Math.abs(parseFloat(p.answer) - correctVal) === minDist)
                 .map((p) => p.userId)
             );
           }
+        } else if (official) {
+          winnerIds = new Set(
+            qPreds.filter((p) => isBonusAnswerCorrect(p.answer, official)).map((p) => p.userId)
+          );
         }
+
+        const answerValues = official && q.type !== 'number' ? parseBonusAnswers(official) : official ? [official] : [];
+        const winners = winnerIds ? [...winnerIds].map((id) => memberMap.get(id)).filter((m): m is BonusMember => !!m) : [];
 
         return (
           <Card key={q.id}>
@@ -106,17 +115,50 @@ function EveryonesPicks({ leagueId }: { leagueId: string }) {
                 />
               </Box>
 
-              {/* Official answer badge */}
+              {/* Winner reveal */}
               {official ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 1.5, p: 1, borderRadius: 1, bgcolor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
-                  <CheckCircleIcon sx={{ fontSize: '1rem', color: '#22c55e' }} />
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#22c55e' }}>
-                    Official:{' '}
-                    {q.type === 'team' && TEAMS[official]
-                      ? `${TEAMS[official].flag} ${TEAMS[official].name}`
-                      : official}
-                  </Typography>
-                  {q.type === 'number' && <Typography variant="caption" color="text.secondary">— closest wins</Typography>}
+                <Box
+                  sx={{
+                    mb: 1.5,
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: 'linear-gradient(135deg, rgba(201,167,58,0.16) 0%, rgba(201,167,58,0.04) 100%)',
+                    border: '1px solid rgba(201,167,58,0.35)',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mb: 1 }}>
+                    <EmojiEventsIcon sx={{ fontSize: '1rem', color: '#C9A73A' }} />
+                    <Typography variant="overline" sx={{ fontWeight: 800, color: '#C9A73A', letterSpacing: 0.8, lineHeight: 1 }}>
+                      {q.type === 'number' ? 'Official total — closest wins' : answerValues.length > 1 ? 'The answers (tied)' : 'The answer'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, mb: winners.length > 0 ? 1.25 : 0 }}>
+                    {answerValues.map((val) => (
+                      <Chip
+                        key={val}
+                        label={q.type === 'team' && TEAMS[val] ? `${TEAMS[val].flag} ${TEAMS[val].name}` : val}
+                        size="small"
+                        sx={{ fontWeight: 700, bgcolor: 'rgba(201,167,58,0.22)', color: '#C9A73A' }}
+                      />
+                    ))}
+                  </Box>
+                  {winners.length > 0 && (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                        ✅ {winners.length} of {members.length} got it right
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {winners.map((w) => (
+                          <Box key={w.userId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Avatar src={w.image ?? undefined} sx={{ width: 20, height: 20, fontSize: '0.6rem' }}>
+                              {w.name[0]}
+                            </Avatar>
+                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{w.name.split(' ')[0]}</Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
               ) : (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 1.5, opacity: 0.5 }}>
@@ -134,14 +176,7 @@ function EveryonesPicks({ leagueId }: { leagueId: string }) {
                     ? `${TEAMS[answer].flag} ${TEAMS[answer].name}`
                     : answer;
 
-                  let isCorrect: boolean | null = null;
-                  if (official && answer) {
-                    if (q.type === 'number') {
-                      isCorrect = closestUserIds?.has(member.userId) ?? false;
-                    } else {
-                      isCorrect = answer.trim().toLowerCase() === official.trim().toLowerCase();
-                    }
-                  }
+                  const isCorrect: boolean | null = official && answer ? (winnerIds?.has(member.userId) ?? false) : null;
 
                   const distFromOfficial = q.type === 'number' && official && answer
                     ? Math.abs(parseFloat(answer) - parseFloat(official))
