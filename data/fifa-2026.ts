@@ -296,10 +296,10 @@ export const KNOCKOUT_FIXTURES: Fixture[] = [
   { matchNumber: 102, phase: 'semi', team1: 'ENG', team2: 'ARG', venue: 'Mercedes-Benz Stadium', city: 'Atlanta', date: '2026-07-15T19:00:00Z', canDraw: false },
 
   // Third Place
-  { matchNumber: 103, phase: 'final', team1: 'TBD', team2: 'TBD', venue: 'Hard Rock Stadium', city: 'Miami', date: '2026-07-18T22:00:00Z', canDraw: false },
+  { matchNumber: 103, phase: 'final', team1: 'FRA', team2: 'ENG', venue: 'Hard Rock Stadium', city: 'Miami', date: '2026-07-18T21:00:00Z', canDraw: false },
 
   // Final
-  { matchNumber: 104, phase: 'final', team1: 'TBD', team2: 'TBD', venue: 'MetLife Stadium', city: 'New York/NJ', date: '2026-07-19T22:00:00Z', canDraw: false },
+  { matchNumber: 104, phase: 'final', team1: 'ESP', team2: 'ARG', venue: 'MetLife Stadium', city: 'New York/NJ', date: '2026-07-19T19:00:00Z', canDraw: false },
 ];
 
 export const ALL_FIXTURES = [...GROUP_FIXTURES, ...KNOCKOUT_FIXTURES];
@@ -465,7 +465,7 @@ export const PHASES: PhaseConfig[] = [
     id: 'final',
     name: 'Final',
     shortName: 'Final',
-    deadline: '2026-07-17T22:00:00Z',
+    deadline: '2026-07-18T20:59:00Z',
     color: '#C9A73A',
     icon: '🏆',
     scoringType: 'pool',
