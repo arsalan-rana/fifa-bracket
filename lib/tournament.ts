@@ -81,7 +81,7 @@ export function calcPoolPoints(
     ).length;
 
     if (correctPickers === 0) continue;
-    const share = poolPoints / correctPickers;
+    const share = (fixture.poolPointsOverride ?? poolPoints) / correctPickers;
 
     const chip = chips.find(
       (c) =>

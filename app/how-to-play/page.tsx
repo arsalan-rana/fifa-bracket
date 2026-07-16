@@ -11,7 +11,7 @@ import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import NavBar from '../components/NavBar';
-import { PHASES, BONUS_QUESTIONS } from '../../data/fifa-2026';
+import { PHASES, ALL_FIXTURES, BONUS_QUESTIONS } from '../../data/fifa-2026';
 
 export const metadata = { title: 'How to Play — WC26 Bracket' };
 
@@ -89,6 +89,17 @@ export default function HowToPlayPage() {
           <Typography color="text.secondary" variant="body2">
             Pool points are split only among people in <em>your league</em>, not the entire platform.
           </Typography>
+
+          {(() => {
+            const overridden = ALL_FIXTURES.filter((f) => f.poolPointsOverride != null);
+            if (overridden.length === 0) return null;
+            return (
+              <Typography color="text.secondary" variant="body2" sx={{ mt: 1 }}>
+                Exception: the 3rd-place match uses a smaller pool ({overridden[0].poolPointsOverride} pts) than the
+                Final it shares a deadline with, since it's the consolation game rather than the championship.
+              </Typography>
+            );
+          })()}
         </Section>
 
         {/* Late penalty */}

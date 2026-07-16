@@ -51,7 +51,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const correctCount = memberPredictions.filter(
       p => p.matchNumber === fixture.matchNumber && p.predictedWinner === result
     ).length;
-    poolByMatch.set(fixture.matchNumber, correctCount > 0 ? (phase.poolPoints ?? 80) / correctCount : 0);
+    const effectivePoolPoints = fixture.poolPointsOverride ?? phase.poolPoints ?? 80;
+    poolByMatch.set(fixture.matchNumber, correctCount > 0 ? effectivePoolPoints / correctCount : 0);
   }
 
   const predMap = new Map(predictions.map(p => [p.matchNumber, p]));
